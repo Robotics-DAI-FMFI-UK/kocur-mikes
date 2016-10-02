@@ -1,3 +1,9 @@
+# config is on a separate repository
+config/
+
+# local trash 
+recycle/
+
 # Object files
 *.o
 *.ko
