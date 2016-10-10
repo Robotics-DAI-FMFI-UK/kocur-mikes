@@ -6,6 +6,7 @@
 #include <stdlib.h>
 
 #include "mikes_logs.h"
+#include "config_mikes.h"
 
 static char *log_filename;
 
@@ -34,13 +35,21 @@ static char *log_type_str[3] = { "INFO", "WARN", " ERR" };
 void mikes_log(unsigned int log_type, char *log_msg)
 {
 
-  FILE *f = fopen(log_filename, "w+");
-  if ((log_type < 0) || (log_type > ML_MAX_TYPE))
+  FILE *f = fopen(log_filename, "a+");
+  if (!f)
+      perror("mikes:logs");
+  else
   {
-      fprintf(f, "WARN: unrecognized log type %d\n", log_type);
-      log_type = ML_ERR;
+	  if ((log_type < 0) || (log_type > ML_MAX_TYPE))
+	  {
+		  fprintf(f, "WARN: unrecognized log type %d\n", log_type);
+		  log_type = ML_ERR;
+	  }
+	  fprintf(f, "%s: %s\n", log_type_str[log_type], log_msg); 
+	  fclose(f);
   }
-  fprintf(f, "%s: %s\n", log_type_str[log_type], log_msg); 
-  fclose(f);
+  	  
+  if (mikes_config.print_all_logs_to_console)
+    printf("%s: %s\n", log_type_str[log_type], log_msg); 
 }
 

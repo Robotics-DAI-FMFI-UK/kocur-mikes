@@ -58,6 +58,8 @@ void *gui_thread(void *arg)
     } 
 
     gui_shutdown();
+    mikes_log(ML_INFO, "gui quits.");
+    threads_running_add(-1);
     return 0;
 }
 

@@ -15,13 +15,15 @@ void report_status_to_server()
 
 void *public_relations_thread(void *args)
 {
-  sleep(10);
+  sleep(1);
   while (program_runs)
   {
     report_status_to_server();
-    sleep(60);
+    for (int i = 0; i < 60; i++) 
+      if (program_runs) sleep(1);
   }
-  threads_running--;
+  mikes_log(ML_INFO, "PR quits.");
+  threads_running_add(-1);
   return 0;
 }
 
@@ -34,6 +36,6 @@ void init_public_relations()
     perror("mikes:pr");
     mikes_log(ML_ERR, "creating pr thread");
   }
-  else threads_running++;
+  else threads_running_add(1);
 }
 

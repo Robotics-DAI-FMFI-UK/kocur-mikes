@@ -1,5 +1,5 @@
-# file location: /etc/network/interfaces
 # interfaces(5) file used by ifup(8) and ifdown(8)
+# file location: /etc/network/interfaces
 
 # Please note that this file is written to be used with dhcpcd
 # For static IP, consult /etc/dhcpcd.conf and 'man dhcpcd.conf'
@@ -17,31 +17,26 @@ iface wlan1 inet manual
 ################ configuration of Mikes:
 
 # Mikes OPTION1: ETHERNET with DHCP
-auto eth0
-iface eth0 inet dhcp
-
-# OPTION2: ETHERNET local peer-to-peer (automatically connects from windows)
-#iface eth0 inet static
-#    address 169.254.0.2
-#    netmask 255.255.255.0
-
-# OPTION3: EDUROAM
-#allow-hotplug wlan0
-#iface wlan0 inet manual
-#    wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf
-
-# OPTION4: adhoc local wifi
-auto wlan0
-iface wlan0 inet static
-    address 10.8.6.4
-    netmask 255.255.255.0
-    wireless-channel 1
-    wireless-essid kocur_mikes
-    wireless-mode ad-hoc
-
-# OPTION5: Hokuyo on Ethernet
 #auto eth0
-#iface eth0 inet static
-#	address 192.168.0.2
-#	netmask 255.255.255.0
+#iface eth0 inet dhcp
+
+# OPTION2: ETHERNET local hokuyo and sick sensors (+automatically connects from windows)
+auto eth0
+iface eth0 inet static
+    address 169.254.0.3
+    netmask 255.255.0.0
+
+# OPTION3: EDUROAM wifi
+allow-hotplug wlan0
+iface wlan0 inet manual
+    wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf
+
+# OPTION4: adhoc local wifi  - useful for debugging
+#auto wlan0
+#iface wlan0 inet static
+#    address 10.8.6.4
+#    netmask 255.255.255.0
+#    wireless-channel 1
+#    wireless-essid kocur_mikes
+#    wireless-mode ad-hoc
 

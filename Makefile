@@ -3,19 +3,22 @@ PROG=mikes
 SRCS=mikes.c \
      public_relations.c \
      range_sensor.c \
+     rfid_sensor.c \
      mikes_logs.c \
      navigation.c \
      gui.c \
      windows.c \
      config/config.c \
-     config_mikes.c
+     config_mikes.c \
+     base_module.c \
+     util.c
 OBJS=${SRCS:.c=.o}
 CFLAGS=-std=c11 -D_BSD_SOURCE -I/usr/include/cairo -g
 LDFLAGS=-lpthread -lcairo -lX11 -lm
 PREFIX=/usr/local
 
 all: ${OBJS}
-	${CC} ${OBJS} -o ${PROG} ${LDFLAGS}
+	${CC} ${OBJS} -o ${PROG} ${CFLAGS} ${LDFLAGS}
 
 install:
 	mv ${PROG} ${PREFIX}/bin

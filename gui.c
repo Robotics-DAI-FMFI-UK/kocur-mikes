@@ -95,7 +95,7 @@ void init_gui()
         perror("mikes:gui");
         mikes_log(ML_ERR, "creating gui thread");
     }
-    else threads_running++;
+    else threads_running_add(1);
 }
 
 void gui_shutdown()

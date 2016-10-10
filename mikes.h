@@ -2,6 +2,7 @@
 #define _MIKES_DAEMON_H_
 
 extern volatile unsigned char program_runs;
-extern _Atomic volatile unsigned short threads_running;
+
+void threads_running_add(short x);
 
 #endif 

@@ -5,7 +5,7 @@
 
 #define RANGE_DATA_COUNT 1081
 #define HOKUYO_PORT 10940
-#define HOKUYO_ADDR "192.168.0.10"
+#define HOKUYO_ADDR "169.254.0.10"
 
 extern pthread_mutex_t range_sensor_lock;
 extern int *range_data;

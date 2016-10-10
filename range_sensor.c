@@ -49,7 +49,7 @@ void connect_range_sensor()
         return;
     }
 
-    mikes_log(ML_INFO, "range sensor connected\n");
+    mikes_log(ML_INFO, "range sensor connected");
 }
 
 void *range_sensor_thread(void *args) 
@@ -57,7 +57,6 @@ void *range_sensor_thread(void *args)
     char *start_measurement = "BM\n";
     char *request_measurement = "GD0000108000\n";
     unsigned char readbuf[BUFFER_SIZE];
-    int disruption;
 
     if (write(sockfd, start_measurement, strlen(start_measurement)) < 0) 
     {
@@ -160,7 +159,8 @@ void *range_sensor_thread(void *args)
         usleep(25000);
     }
 
-    threads_running--;
+    mikes_log(ML_INFO, "range quits.");
+    threads_running_add(-1);
 }
 
 void init_range_sensor()
@@ -181,9 +181,8 @@ void init_range_sensor()
       perror("mikes:range");
       mikes_log(ML_ERR, "creating thread for range sensor");
     }
-    else threads_running++;
+    else threads_running_add(1);
 }
-
 
 void get_range_data(int* buffer) 
 {
