@@ -296,12 +296,12 @@ void set_wished_speed()
 {
   wished_speed_left = requested_left_motor_speed;
   wished_speed_right = requested_right_motor_speed;
-  if (current_left_speed = 0) 
+  if (current_left_speed == 0) 
   {
       if (requested_left_motor_speed > 0) current_left_speed = 19;
       else if (requested_left_motor_speed < 0) current_left_speed = -19;
   }
-  if (current_right_speed = 0) 
+  if (current_right_speed == 0) 
   {
       if (requested_right_motor_speed > 0) current_right_speed = 19;
       else if (requested_right_motor_speed < 0) current_right_speed = -19;
@@ -368,24 +368,24 @@ void regulate_speed()
   else if (velocityA > wished_speed_left) speed_up_left--;
   if (speed_up_left > TIME_TO_SPEEDUP) 
   {
-    if (current_left_speed < 90) current_left_speed++;
+    if (current_left_speed < 180) current_left_speed++;
     speed_up_left = 0;
   }
   else if (speed_up_left < -TIME_TO_SPEEDUP)
   {
-    if (current_left_speed > -90) current_left_speed--;
+    if (current_left_speed > 0) current_left_speed--;
     speed_up_left = 0;
   }
   if (velocityB < wished_speed_right) speed_up_right++;
   else if (velocityB > wished_speed_right) speed_up_right--;
   if (speed_up_right > TIME_TO_SPEEDUP) 
   {
-    if (current_right_speed < 90) current_right_speed++;
+    if (current_right_speed < 180) current_right_speed++;
     speed_up_right = 0;
   }
   else if (speed_up_right < -TIME_TO_SPEEDUP)
   {
-    if (current_right_speed > -90) current_right_speed--;
+    if (current_right_speed > 0) current_right_speed--;
     speed_up_right = 0;
   }
   motorA.write(current_left_speed);  
