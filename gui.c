@@ -10,6 +10,7 @@
 
 #include "mikes.h"
 #include "mikes_logs.h"
+#include "config_mikes.h"
 
 void gui_fullscreen(Display* dpy, Window win)
 {
@@ -28,7 +29,7 @@ int gui_cairo_check_event(cairo_surface_t *sfc, int block)
    {
       if (block || XPending(cairo_xlib_surface_get_display(sfc)))
          XNextEvent(cairo_xlib_surface_get_display(sfc), &e);
-      else 
+      else
          return 0;
 
       switch (e.type)
@@ -55,8 +56,8 @@ cairo_surface_t *gui_cairo_create_x11_surface(int *x, int *y)
 
    if ((dsp = XOpenDisplay(0)) == 0)
    {
-	mikes_log(ML_WARN, "could not open X display, will not use graphics");
-	return 0;
+    mikes_log(ML_WARN, "could not open X display, will not use graphics");
+    return 0;
    }
    screen = DefaultScreen(dsp);
    scr = DefaultScreenOfDisplay(dsp);
@@ -84,13 +85,18 @@ extern void *gui_thread(void *arg);
 
 void init_gui()
 {
-    int width = 600; 
+    if (!mikes_config.with_gui)
+    {
+        mikes_log(ML_INFO, "gui supressed by config.");
+        return;
+    }
+    int width = 600;
     int height = 600;
     gui_surface = gui_cairo_create_x11_surface(&width, &height);
     gui = cairo_create(gui_surface);
 
     pthread_t t;
-    if (pthread_create(&t, 0, gui_thread, 0) != 0) 
+    if (pthread_create(&t, 0, gui_thread, 0) != 0)
     {
         perror("mikes:gui");
         mikes_log(ML_ERR, "creating gui thread");
@@ -100,6 +106,7 @@ void init_gui()
 
 void gui_shutdown()
 {
+    if (!mikes_config.with_gui) return;
     cairo_destroy(gui);
     Display *dsp = cairo_xlib_surface_get_display(gui_surface);
     cairo_surface_destroy(gui_surface);
