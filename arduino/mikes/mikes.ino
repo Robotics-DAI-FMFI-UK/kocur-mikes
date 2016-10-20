@@ -41,9 +41,10 @@
 #define WAITING_AZIMUTH1 8
 #define WAITING_AZIMUTH2 9
 #define WAITING_AZIMUTH3 10
+#define WAITING_DIGIT2B 11
+#define WAITING_DIGIT4B 12
 
 #define VELOCITY_MEASURING_PERIOD 5
-
 
 #define DEGREES_PER_SECOND_MULTIPLIER  (VELOCITY_MEASURING_PERIOD / 144.0 * 1000000.0 * 360.0)
 #define TIME_TO_SPEEDUP 20
@@ -73,8 +74,8 @@ void pciSetup(byte pin)
     PCICR  |= bit (digitalPinToPCICRbit(pin)); // enable interrupt for the group
 }
 
-uint8_t current_left_speed;
-uint8_t current_right_speed;
+uint8_t current_left_speed;   // 0..180, 90 = stop, 180 = full fwd, 0 = full bwd
+uint8_t current_right_speed;  // same
 
 volatile int32_t counterA;
 volatile int32_t counterB;
@@ -94,17 +95,16 @@ volatile uint8_t ncases = 0;
 uint8_t inpstate;
 
 uint8_t command;
-uint8_t regulation;
+uint8_t velocity_regulation;
 
-int8_t wished_speed_left;
-int8_t wished_speed_right;
+int16_t wished_speed_left;
+int16_t wished_speed_right;
 int8_t speed_up_left;
 int8_t speed_up_right;
 
-int8_t left_azimuth_speed;
-int8_t right_azimuth_speed;
+uint8_t azimuth_speed;    // 0..180, 90=stop
 int16_t azimuth;
-uint8_t using_azimuth;
+uint8_t azimuth_regulation;
 
 inline void updateA()
 {
@@ -138,7 +138,7 @@ inline void updateB()
   }
 }
 
-uint8_t occ = 0;
+uint8_t occ = 0;  //only for debugging encoders, to be removed
 
 //ENCB1
 ISR (PCINT1_vect) // handle pin change interrupt for A0 to A5 here
@@ -176,15 +176,16 @@ int angle_difference(int alpha, int beta)
   return diff;
 }
 
-
 void setup() 
 {
     counterA = 0; counterB = 0; lastVA = 0; lastVB = 0;
-    current_left_speed = 90; current_right_speed = 90;
-    regulation = 0;
+    current_left_speed = 90; current_right_speed = 90; 
+    velocity_regulation = 0;
     azimuth = 0;
-    using_azimuth = 0;
+    azimuth_regulation = 0;
+    azimuth_speed = 90;
     inpstate = WAITING_FOR_START;
+    
     pinMode(ENCA1, INPUT);  // encA1
     pinMode(ENCA2, INPUT);  // encA2
     pinMode(ENCB1, INPUT);  // encB1
@@ -213,52 +214,18 @@ void setup()
 
     accelgyro.initialize();
     accelgyro.setI2CBypassEnabled(true);
-    delay(5);    
+    delay(1);    
     mag.initialize();
-    delay(10);
+    delay(1);
 
     Serial.begin(115200);
     pinMode(LED_PIN, OUTPUT);
 }
 
-void test_motor_speed(int speed, int motor)
-{
-   for (int j = 0; j < 2; j++)
-    {
-      digitalWrite(motor, 1);
-      delayMicroseconds(speed);
-      digitalWrite(motor, 0);
-      delay(10);
-    }
-}
-
-void test_motors() 
-{
-  for (int i = 1500; i < 2000; i++)
-      test_motor_speed(i, MOTORA);
-
-  for (int i = 2000; i > 1000; i--)
-      test_motor_speed(i, MOTORA);
-
-  for (int i = 1000; i < 1500; i++)
-      test_motor_speed(i, MOTORA);
-
-  for (int i = 1500; i < 2000; i++)
-      test_motor_speed(i, MOTORB);
-
-  for (int i = 2000; i > 1000; i--)
-      test_motor_speed(i, MOTORB);
-
-  for (int i = 1000; i < 1500; i++)
-      test_motor_speed(i, MOTORB);
-
-  delay(1000);
-}
-
 int8_t requested_left_motor_sign;
 int8_t requested_right_motor_sign;
-int8_t requested_left_motor_speed;
-int8_t requested_right_motor_speed;
+int16_t requested_left_motor_speed;
+int16_t requested_right_motor_speed;
 
 void stop_now()
 {
@@ -280,17 +247,17 @@ void stop_now()
   motorB.write(90);
   current_left_speed = 90;
   current_right_speed = 90;
+  azimuth_speed = 90;
 }
 
 void set_requested_speed()
 {
-  current_left_speed = 90 - (int8_t)((float)requested_left_motor_speed * 1.22);
+  current_left_speed = 90 - (int8_t)((float)requested_left_motor_speed * 1.22);  //1.22 - current measured motor strength differences (different HB25 versions? mechanics?)
+  //current_left_speed = 90 - requested_left_motor_speed; 
   current_right_speed = 90 + requested_right_motor_speed;
   motorA.write(current_left_speed);
   motorB.write(current_right_speed);
 }
-
-
 
 void set_wished_speed()
 {
@@ -298,24 +265,62 @@ void set_wished_speed()
   wished_speed_right = requested_right_motor_speed;
   if (current_left_speed == 0) 
   {
-      if (requested_left_motor_speed > 0) current_left_speed = 19;
-      else if (requested_left_motor_speed < 0) current_left_speed = -19;
+      if (requested_left_motor_speed > 0) current_left_speed = 90 + 19;
+      else if (requested_left_motor_speed < 0) current_left_speed = 90 - 19;
   }
   if (current_right_speed == 0) 
   {
-      if (requested_right_motor_speed > 0) current_right_speed = 19;
-      else if (requested_right_motor_speed < 0) current_right_speed = -19;
+      if (requested_right_motor_speed > 0) current_right_speed = 90 + 19;
+      else if (requested_right_motor_speed < 0) current_right_speed = 90 - 19;
   }
 }
+
+/* raspberry <-> arduino serial protocol:
+ *  
+ *  raspberry -> arduino:
+ *  
+ *  @MsLLzRR    - set absolute motor power -90..90  sLL and zRR are left and right power, where s/z is either '-' or a space, values are in decimal
+ *  @S          - stop now (within about 0.5 second, not abruptly)
+ *  @R          - reset 32-bit rotation counters of both encoders
+ *  @AXXX       - set new azimuth - should be used together with @M/@V command, robot will automatically start moving towards a specified azimuth XXX = 0..360 degrees
+ *  @X          - stop following the azimuth (cancel @A mode)
+ *  @VsLLLzRRR  - set wished motor velocities (speed-regulated mode) the robot will try to move so that the actual speed of the left (LLL) and right (RRR) wheel
+ *                is as specified (in degrees/second - the same unit as reported in the output status)
+ *                
+ *   notes:                
+ *     @M cancels @V
+ *     @V cancels @M and @A  (either regulate direction or velocity)
+ *     @A cancels @V
+ *     @M can used before @A
+ *     @A can be cancelled by @X, but it does not stop the robot (will continue moving in random way as abandonded), 
+ *        therefore use @S, or zero @M before or right after @X, or @V instead of @X to switch to different regulation mode
+ *        change of speed @M does not cancel @A, and can be used multiple times for a single @A (average of left/right @M motor speeds will be used for @A)
+ *     sentences do not need to be terminated by EOL
+ *             
+ *  arduino -> raspberry (status reporting):
+ *  
+ *  $countL countR veloL veloR dist1 dist2 dist3 cube heading ax ay az gx gy gz
+ *  
+ *    countL, countR - counters from the encoders (144 per wheel revolution)
+ *    veloL, veloR   - current rotational velocity (in degrees/second) 
+ *    dist1 - dist3  - last analog value read from SHARP distance sensors (2Y0A21)
+ *    cube           - same type of sensor for detecting dice presence
+ *    heading        - current compass heading in degrees
+ *    ax, ay, az     - three-axis axelerometer current values (probably to be removed from here)
+ *    gx, gy, gz     - three-axis gyroscope current values (also to be removed from here)
+ *    
+ *    currently the frequency of status reporting is somewhat less than 50Hz, but this may change (you cannot push much more data through 115kbps anyway
+ */
 
 void process_char(uint8_t ch)
 {
   //if (ch == '!') for (int i = 0; i < 200; i++) Serial.println(cases[i]); else 
-  if (ch == '@') { inpstate = EXPECTING_COMMAND; using_azimuth = 0; }
+  if (ch == '@') inpstate = EXPECTING_COMMAND; 
   else switch (inpstate) {
     case EXPECTING_COMMAND: if (ch == 'S') { stop_now(); inpstate = WAITING_FOR_START; }
                             else if (ch == 'R') counterA = counterB = 0;
-                            else if (ch == 'A') { inpstate = WAITING_AZIMUTH1; left_azimuth_speed = current_left_speed; right_azimuth_speed = current_right_speed; }
+                            else if (ch == 'X') azimuth_regulation = 0;
+                            else if (ch == 'A') inpstate = WAITING_AZIMUTH1; 
                             else if ((ch == 'V') || (ch == 'M')) inpstate = WAITING_SIGN1; 
                             command = ch;
                             break;
@@ -326,29 +331,40 @@ void process_char(uint8_t ch)
                          inpstate = WAITING_DIGIT2;
                          break;
     case WAITING_DIGIT2: requested_left_motor_speed += ch - '0';
-                         requested_left_motor_speed *= requested_left_motor_sign;
-                         inpstate = WAITING_SIGN2;
+                         if (command == 'V') inpstate = WAITING_DIGIT2B; else inpstate = WAITING_SIGN2;
                          break;
-    case WAITING_SIGN2: requested_right_motor_sign = (ch == '-')?1:(-1); 
+    case WAITING_DIGIT2B: requested_left_motor_speed *= 10;
+                          requested_left_motor_speed += ch - '0';
+                          inpstate = WAITING_SIGN2;
+                          break;
+    case WAITING_SIGN2: requested_left_motor_speed *= requested_left_motor_sign;
+                        requested_right_motor_sign = (ch == '-')?1:(-1); 
                         inpstate = WAITING_DIGIT3;
                         break;                         
     case WAITING_DIGIT3: requested_right_motor_speed = (ch - '0') * 10;                         
                          inpstate = WAITING_DIGIT4;
                          break;
     case WAITING_DIGIT4: requested_right_motor_speed += ch - '0';
-                         requested_right_motor_speed *= requested_right_motor_sign;
-                         inpstate = WAITING_FOR_START;
                          if (command == 'M') 
                          {
+                            inpstate = WAITING_FOR_START;
+                            requested_right_motor_speed *= requested_right_motor_sign;
+                            azimuth_speed = (requested_left_motor_speed + requested_right_motor_speed) / 2;
                             set_requested_speed();
-                            regulation = 0;
+                            velocity_regulation = 0;
                          }
                          else if (command == 'V')
                          {
-                            set_wished_speed();
-                            regulation = 1;
+                            inpstate = WAITING_DIGIT4B;
+                            requested_right_motor_speed *= 10; 
                          }
                          break;    
+    case WAITING_DIGIT4B: requested_right_motor_speed += ch - '0';
+                          inpstate = WAITING_FOR_START;
+                          set_wished_speed();
+                          velocity_regulation = 1;
+                          azimuth_regulation = 0;
+                          break;
     case WAITING_AZIMUTH1: azimuth = (ch - '0') * 100; 
                            inpstate = WAITING_AZIMUTH2;
                            break;
@@ -356,7 +372,8 @@ void process_char(uint8_t ch)
                            inpstate = WAITING_AZIMUTH3;
                            break;
     case WAITING_AZIMUTH3: azimuth += ch - '0'; 
-                           using_azimuth = 1;
+                           azimuth_regulation = 1;
+                           velocity_regulation = 0;
                            inpstate = WAITING_FOR_START;
                            break;
   }
@@ -392,7 +409,6 @@ void regulate_speed()
   motorB.write(current_right_speed);
 }
 
-
 void update_speed_according_to_dir(int current_heading)
 {
   int delta = angle_difference(azimuth, current_heading);
@@ -400,18 +416,18 @@ void update_speed_according_to_dir(int current_heading)
   
   if (delta > 3)
   {
-    current_right_speed = 90 + 2 * (right_azimuth_speed - 90) /3;
-    current_left_speed = left_azimuth_speed;
+    current_right_speed = 90 + 2 * (azimuth_speed - 90) /3;
+    current_left_speed = azimuth_speed;
   }
   else if (delta < -3)
   {
-    current_right_speed = right_azimuth_speed;
-    current_left_speed = 90 + (left_azimuth_speed - 90) * 2 / 3;
+    current_right_speed = azimuth_speed;
+    current_left_speed = 90 + (azimuth_speed - 90) * 2 / 3;
   }
   else
   {
-    current_right_speed = right_azimuth_speed;
-    current_left_speed = left_azimuth_speed;
+    current_right_speed = azimuth_speed;
+    current_left_speed = azimuth_speed;
   }
   motorA.write(current_left_speed);
   motorB.write(current_right_speed);
@@ -434,10 +450,10 @@ void loop()
     Serial.print(counterB); Serial.print("\t");
     Serial.print(velocityA); Serial.print(" ");
     Serial.print(velocityB); Serial.print("\t");
-    if (using_azimuth) update_speed_according_to_dir(heading_int);
-    if (regulation) regulate_speed();
+    if (azimuth_regulation) update_speed_according_to_dir(heading_int);
+    if (velocity_regulation) regulate_speed();
     uint32_t tm = micros();
-    if (tm - lastVelocityA > 250000) velocityA = 0;
+    if (tm - lastVelocityA > 250000) velocityA = 0;  // falls to 0 after 0.25s inactivity on encoders
     if (tm - lastVelocityB > 250000) velocityB = 0; 
     Serial.print(analogRead(DIST1)); Serial.print(" ");
     Serial.print(analogRead(DIST2)); Serial.print(" ");
@@ -457,6 +473,4 @@ void loop()
     while (Serial.available()) process_char(Serial.read());
     delay(20);
 }
-
-
 
