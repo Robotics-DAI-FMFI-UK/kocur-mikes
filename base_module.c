@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include <math.h>
 #include <sys/types.h>
+#include <signal.h>
 #include <unistd.h>
 #include <ctype.h>
 
@@ -19,21 +20,23 @@ static pthread_mutex_t base_module_lock;
 static int fdR[2];
 static int fdW[2];
 
+static pid_t plink_child;
 
-void connect_base_module() 
+void connect_base_module()
 {
-	int child;
-
-        if (pipe(fdR) < 0) {
+        if (pipe(fdR) < 0)
+        {
             perror("pipe2()");
             exit(-1);
         }
-        if (!pipe(fdW) < 0) {
+        if (!pipe(fdW) < 0)
+        {
             perror("pipe2()");
             exit(-1);
         }
 
-        if ((child = fork()) == 0) {
+        if ((plink_child = fork()) == 0)
+        {
             /* child */
 
             close(0);
@@ -46,13 +49,15 @@ void connect_base_module()
             close(fdW[1]);
 
             if (execl("/usr/bin/plink", "/usr/bin/plink", "/dev/ttyUSB0",
-             "-serial", "-sercfg", "115200,N,n,8,1", NULL) < 0) {
+             "-serial", "-sercfg", "115200,N,n,8,1", NULL) < 0)
+            {
                 perror("child execl()");
                 exit(-1);
             }
         }
 
-    if (child < 0) {
+    if (plink_child < 0)
+    {
             perror("fork()");
             exit(-1);
     }
@@ -70,7 +75,8 @@ void read_base_packet()
     int numRead;
 
     do {
-        if ((numRead = read(fdW[0], &ch, 1)) < 0) {
+        if ((numRead = read(fdW[0], &ch, 1)) < 0)
+        {
             perror("read()");
             exit(-1);
         }
@@ -79,7 +85,8 @@ void read_base_packet()
     char line[1024];
     int lnptr = 0;
     do {
-      if ((numRead = read(fdW[0], line + lnptr, 1)) < 0) {
+      if ((numRead = read(fdW[0], line + lnptr, 1)) < 0)
+      {
          perror("read()");
          exit(-1);
       }
@@ -87,10 +94,10 @@ void read_base_packet()
       if (lnptr > 1023) break;
     } while (program_runs && (line[lnptr - 1] != '\n'));
     pthread_mutex_lock(&base_module_lock);
-    sscanf(line, "%ld%ld%d%d%d%d%d%d%d%d%d%d%d%d%d", 
+    sscanf(line, "%ld%ld%hd%hd%hd%hd%hd%hd%hd%hd%hd%hd%hd%hd%hd",
                                   &(local_data.counterA), &(local_data.counterB), &(local_data.velocityA),
                                   &(local_data.velocityB), &(local_data.dist1), &(local_data.dist2),
-                                  &(local_data.dist3), &(local_data.cube), &(local_data.heading), 
+                                  &(local_data.dist3), &(local_data.cube), &(local_data.heading),
                                   &(local_data.ax), &(local_data.ay), &(local_data.az),
                                   &(local_data.gx), &(local_data.gy), &(local_data.gz));
     pthread_mutex_unlock(&base_module_lock);
@@ -102,13 +109,12 @@ void set_motor_speeds(int left_motor, int right_motor)
     char cmd[40];
     int lm = abs(left_motor);
     int rm = abs(right_motor);
-    sprintf(cmd, "@M%c%1d%1d%c%1d%1d", ((left_motor > 0)?' ':'-'), 
+    sprintf(cmd, "@M%c%1d%1d%c%1d%1d", ((left_motor > 0)?' ':'-'),
                                      ((lm / 10) % 10),
                                      (lm % 10),
                                      ((right_motor > 0)?' ':'-'),
                                      (rm / 10) % 10,
                                      (rm % 10));
-    printf("cmd:%s\n", cmd);
     if (write(fdR[1], cmd, strlen(cmd)) < strlen(cmd))
     {
        perror("mikes:base");
@@ -151,10 +157,12 @@ void regulated_speed(int left_motor, int right_motor)
     int lm = left_motor;
     int rm = right_motor;
 
-    sprintf(cmd, "@V%c%d%d%c%d%d", ((left_motor > 0)?' ':'-'), 
+    sprintf(cmd, "@V%c%d%d%d%c%d%d%d", ((left_motor > 0)?' ':'-'),
+                                     (lm / 100) % 10,
                                      (lm / 10) % 10,
                                      (lm % 10),
                                      (right_motor > 0)?' ':'-',
+                                     (rm / 100) % 10,
                                      (rm / 10) % 10,
                                      (rm % 10));
     if (write(fdR[1], cmd, strlen(cmd)) < strlen(cmd))
@@ -163,18 +171,21 @@ void regulated_speed(int left_motor, int right_motor)
       mikes_log(ML_ERR, "base: could not send regulated speed");
     }
 }
-                                                           
-void *base_module_thread(void *args) 
+
+void *base_module_thread(void *args)
 {
-    while (program_runs) 
+    while (program_runs)
     {
         read_base_packet();
-        //parse_base_packet();
         usleep(10000);
     }
 
     mikes_log(ML_INFO, "base quits.");
+    stop_now();
+    usleep(100000);
+    kill(plink_child, SIGTERM);
     threads_running_add(-1);
+    return 0;
 }
 
 void init_base_module()
@@ -191,7 +202,7 @@ void init_base_module()
 }
 
 
-void get_base_data(base_data_type* buffer) 
+void get_base_data(base_data_type* buffer)
 {
     pthread_mutex_lock(&base_module_lock);
     memcpy(buffer, &local_data, sizeof(base_data_type));
