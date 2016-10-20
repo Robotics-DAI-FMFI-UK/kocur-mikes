@@ -32,10 +32,8 @@ int main(int argc, char **argv)
 {
   program_runs = 1;
   threads_running = 1;
-  pthread_mutex_init(&mikes_lock, 0); 
+  pthread_mutex_init(&mikes_lock, 0);
   signal(SIGTERM, signal_term_handler);
-
-  printf("Kocur mikes runs.\n");
 
   load_config();
 
@@ -45,7 +43,7 @@ int main(int argc, char **argv)
   init_range_sensor();
   init_rfid_sensor();
   init_navigation();
-  
+
   init_gui();
 
   while (program_runs)
@@ -53,7 +51,7 @@ int main(int argc, char **argv)
     for (int i = 0; i < 6; i++)
       if (program_runs) sleep(1);
   }
- 
+
   int old_tr = threads_running + 1;
   while (threads_running > 1)
   {
@@ -67,8 +65,8 @@ int main(int argc, char **argv)
     }
   }
 
-  usleep(100000);
   mikes_log(ML_INFO, "Kocur mikes quits.");
+  usleep(100000);
   return 0;
 }
 

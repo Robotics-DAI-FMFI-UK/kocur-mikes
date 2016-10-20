@@ -16,7 +16,7 @@ static short original_heading;
 
 unsigned char obstacle_in_range_data(int *ranges)
 {
-  int starting = 1080 * 75 / 135 / 2; 
+  int starting = 1080 * 75 / 135 / 2;
   int ending = 1081 - starting;
   short segment = 0;
   short missing = 0;
@@ -44,11 +44,11 @@ void turn_away_from_obstacle()
    get_base_data(&base_data);
    short old_heading = base_data.heading;
    set_motor_speeds(20, -20);
-   do { 
-     get_base_data(&base_data); 
-     printf("%d %d -> diff %d\n", old_heading, base_data.heading, angle_difference(old_heading, base_data.heading));
+   do {
+     get_base_data(&base_data);
+     //printf("%d %d -> diff %d\n", old_heading, base_data.heading, angle_difference(old_heading, base_data.heading));
      usleep(10000);
-   } while (abs(angle_difference(old_heading, base_data.heading)) < 90);
+   } while (program_runs && (abs(angle_difference(old_heading, base_data.heading)) < 90));
   set_motor_speeds(20, 20);
 }
 
@@ -58,6 +58,19 @@ void avoid_range_obstacle(int *ranges)
       turn_away_from_obstacle();
 }
 
+void debug_navigation()
+{
+    while(1)
+    {
+        set_motor_speeds(30, 30);
+        sleep(5);
+        set_motor_speeds(-30, -30);
+        sleep(5);
+        stop_now();
+        sleep(2);
+    }
+}
+
 void *navigation_thread(void *arg)
 {
     int ranges[RANGE_DATA_COUNT];
@@ -65,7 +78,12 @@ void *navigation_thread(void *arg)
     get_base_data(&base_data);
     original_heading = base_data.heading;
 
+    mikes_log_val(ML_INFO, "original heading: ", original_heading);
+
     sleep(5);
+
+    //debug_navigation();
+
     int attack = 1;
     long next_change = usec() + CHANGE_PERIOD;
     set_motor_speeds(20, 20);
@@ -85,7 +103,7 @@ void *navigation_thread(void *arg)
           next_change = CHANGE_PERIOD + tm;
           mikes_log(ML_INFO, attack?"navigate: put":"navigate: fetch");
         }
-    } 
+    }
     mikes_log(ML_INFO, "navigation quits.");
     threads_running_add(-1);
     return 0;
@@ -94,7 +112,7 @@ void *navigation_thread(void *arg)
 void init_navigation()
 {
     pthread_t t;
-    if (pthread_create(&t, 0, navigation_thread, 0) != 0) 
+    if (pthread_create(&t, 0, navigation_thread, 0) != 0)
     {
         perror("mikes:navigation");
         mikes_log(ML_ERR, "creating navigation thread");
