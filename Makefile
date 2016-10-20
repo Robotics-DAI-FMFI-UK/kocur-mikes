@@ -13,7 +13,7 @@ SRCS=mikes.c \
      base_module.c \
      util.c
 OBJS=${SRCS:.c=.o}
-CFLAGS=-std=c11 -D_BSD_SOURCE -I/usr/include/cairo -g
+CFLAGS=-std=c11 -D_BSD_SOURCE -D_XOPEN_SOURCE=600 -I/usr/include/cairo -g -Wall
 LDFLAGS=-lpthread -lcairo -lX11 -lm
 PREFIX=/usr/local
 
