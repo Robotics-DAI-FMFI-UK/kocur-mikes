@@ -25,15 +25,13 @@ int *range_data;
 static int *local_data;
 static int sockfd;
 
-void connect_range_sensor() 
+void connect_range_sensor()
 {
-    struct sockaddr_in serv_addr;
-    struct hostent* server;
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
     if (sockfd < 0) {
-	mikes_log(ML_ERR, "cannot open range sensor socket");
-	perror("mikes:range");
+    mikes_log(ML_ERR, "cannot open range sensor socket");
+    perror("mikes:range");
         return;
     }
 
@@ -42,44 +40,44 @@ void connect_range_sensor()
     remoteaddr.sin_addr.s_addr = inet_addr(HOKUYO_ADDR);
     remoteaddr.sin_port = htons(HOKUYO_PORT);
 
-    if (connect(sockfd, (struct sockaddr*)&remoteaddr, sizeof(remoteaddr)) < 0) 
+    if (connect(sockfd, (struct sockaddr*)&remoteaddr, sizeof(remoteaddr)) < 0)
     {
-	mikes_log(ML_ERR, "connecting range sensor socket");
-	perror("mikes:range");
+    mikes_log(ML_ERR, "connecting range sensor socket");
+    perror("mikes:range");
         return;
     }
 
     mikes_log(ML_INFO, "range sensor connected");
 }
 
-void *range_sensor_thread(void *args) 
+void *range_sensor_thread(void *args)
 {
     char *start_measurement = "BM\n";
     char *request_measurement = "GD0000108000\n";
     unsigned char readbuf[BUFFER_SIZE];
 
-    if (write(sockfd, start_measurement, strlen(start_measurement)) < 0) 
+    if (write(sockfd, start_measurement, strlen(start_measurement)) < 0)
     {
         perror("mikes:range");
         mikes_log(ML_ERR, "writing start measurement packet to range sensor");
     }
-    
+
     usleep(250000);
 
     unsigned char x[2];
     int cnt = 0;
     do {
-        if (read(sockfd, x + ((cnt++) % 2), 1) < 0) 
+        if (read(sockfd, x + ((cnt++) % 2), 1) < 0)
         {
             perror("mikes:range");
             mikes_log(ML_ERR, "reading response from range sensor");
             break;
         }
     } while ((x[0] != 10) || (x[1] != 10));
-    
-    while (program_runs) 
+
+    while (program_runs)
     {
-        if (write(sockfd, request_measurement, strlen(request_measurement)) < 0) 
+        if (write(sockfd, request_measurement, strlen(request_measurement)) < 0)
         {
             perror("mikes:range");
             mikes_log(ML_ERR, "writing request to range sensor");
@@ -89,28 +87,25 @@ void *range_sensor_thread(void *args)
         int readptr = 0;
         do {
             int nread = read(sockfd, readbuf + readptr, BUFFER_SIZE - readptr);
-            if (nread < 0) 
+            if (nread < 0)
             {
                 perror("mikes:range");
                 mikes_log(ML_ERR, "reading response from range sensor");
                 break;
             }
             readptr += nread;
-                // printf("nread=%d, readptr=%d readbuf[readptr - 1]=%d,
-                // readbuf[readptr - 2]=%d\n", nread, readptr, readbuf[readptr - 1],
-                // readbuf[readptr - 2]);
             if (readptr < 2) continue;
         } while ((readbuf[readptr - 1] != 10) || (readbuf[readptr - 2] != 10));
 
         int searchptr = 0;
-        for (int i = 0; i < 3; i++) 
+        for (int i = 0; i < 3; i++)
         {
             while ((readbuf[searchptr] != 10) && (searchptr < readptr))
                 searchptr++;
             searchptr++;
         }
 
-        if (readptr - searchptr != 103 + RANGE_DATA_COUNT * 3) 
+        if (readptr - searchptr != 103 + RANGE_DATA_COUNT * 3)
         {
             static char *logmsg1 = "Hokuyo returned packet of unexpected size, I will ignore it size=%d";
             char msg[strlen(logmsg1) + 20];
@@ -121,26 +116,22 @@ void *range_sensor_thread(void *args)
 
         int beam_index = RANGE_DATA_COUNT - 1;
         readptr = searchptr;
-        //int counter = 0;
-	int rays_with_critical_distance = 0;
-        while (beam_index >= 0) 
+        while (beam_index >= 0)
         {
-            // printf("%d (%d %d %d)", counter++, (int)readbuf[searchptr],
-            // (int)readbuf[searchptr + 1], (int)readbuf[searchptr + 2]);
             int pos = (searchptr - readptr) % 66;
-            if (pos == 62) 
+            if (pos == 62)
             {
                 local_data[beam_index] = ((readbuf[searchptr] - 0x30) << 12) |
                                          ((readbuf[searchptr + 1] - 0x30) << 6) |
                                          (readbuf[searchptr + 4] - 0x30);
                 searchptr += 5;
-            } else if (pos == 63) 
+            } else if (pos == 63)
             {
                 local_data[beam_index] = ((readbuf[searchptr] - 0x30) << 12) |
                                          ((readbuf[searchptr + 3] - 0x30) << 6) |
                                          (readbuf[searchptr + 4] - 0x30);
                 searchptr += 5;
-            } else 
+            } else
             {
                 if (pos == 64) searchptr += 2;
                 local_data[beam_index] = ((((int)readbuf[searchptr]) - 0x30) << 12) |
@@ -148,8 +139,6 @@ void *range_sensor_thread(void *args)
                                          (((int)readbuf[searchptr + 2]) - 0x30);
                 searchptr += 3;
             }
-            // printf("  => %d; ", data[beam_index]);
-
             beam_index--;
         }
 
@@ -161,6 +150,7 @@ void *range_sensor_thread(void *args)
 
     mikes_log(ML_INFO, "range quits.");
     threads_running_add(-1);
+    return 0;
 }
 
 void init_range_sensor()
@@ -184,7 +174,7 @@ void init_range_sensor()
     else threads_running_add(1);
 }
 
-void get_range_data(int* buffer) 
+void get_range_data(int* buffer)
 {
     pthread_mutex_lock(&range_sensor_lock);
     memcpy(buffer, range_data, sizeof(int) * RANGE_DATA_COUNT);
