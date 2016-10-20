@@ -30,27 +30,27 @@ static char input_packet[MAX_PACKET_LENGTH];
 
 void read_input_packet()
 {
-	unsigned char ch = 0;
-	
-	while (program_runs && (ch != STX)) 
-		if (read(rfid_sockfd, &ch, 1) < 0) 
-		{
-			perror("mikes:rfid");
-			mikes_log(ML_ERR, "reading response start from rfid sensor");
-			return;
-		}
-		
+    unsigned char ch = 0;
+
+    while (program_runs && (ch != STX))
+        if (read(rfid_sockfd, &ch, 1) < 0)
+        {
+            perror("mikes:rfid");
+            mikes_log(ML_ERR, "reading response start from rfid sensor");
+            return;
+        }
+
     int ptr = 0;
     do {
-        if (read(rfid_sockfd, &ch, 1) < 0) 
-		{
-			perror("mikes:rfid");
-			mikes_log(ML_ERR, "reading response from rfid sensor");
-			return;
-		}
-		input_packet[ptr++] = ch;
-	} while (program_runs && (ch != ETX));
-    
+        if (read(rfid_sockfd, &ch, 1) < 0)
+        {
+            perror("mikes:rfid");
+            mikes_log(ML_ERR, "reading response from rfid sensor");
+            return;
+        }
+        input_packet[ptr++] = ch;
+    } while (program_runs && (ch != ETX));
+
     input_packet[--ptr] = 0;
     //mikes_log(ML_INFO, input_packet);
 }
@@ -58,36 +58,34 @@ void read_input_packet()
 void send_output_packet(char *packet)
 {
     unsigned char ch[2] = { STX, '\r' };
-    
-    if (write(rfid_sockfd, ch, 1) < 0) 
+
+    if (write(rfid_sockfd, ch, 1) < 0)
     {
         perror("mikes:rfid");
         mikes_log(ML_ERR, "writing packet to rfid sensor");
     }
-	
-    if (write(rfid_sockfd, packet, strlen(packet)) < 0) 
+
+    if (write(rfid_sockfd, packet, strlen(packet)) < 0)
     {
         perror("mikes:rfid");
         mikes_log(ML_ERR, "writing  packet to rfid sensor");
     }
 
     ch[0] = ETX;
-    if (write(rfid_sockfd, ch, 2) < 0) 
+    if (write(rfid_sockfd, ch, 2) < 0)
     {
         perror("mikes:rfid");
         mikes_log(ML_ERR, "writing packet  to rfid sensor");
     }
-    
+
     //mikes_log(ML_INFO, packet);
 }
 
-void connect_rfid_sensor() 
+void connect_rfid_sensor()
 {
-    struct sockaddr_in serv_addr;
-    struct hostent* server;
     rfid_sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
-    if (rfid_sockfd < 0) 
+    if (rfid_sockfd < 0)
     {
         mikes_log(ML_ERR, "cannot open rfid sensor socket");
         perror("mikes:rfid");
@@ -99,10 +97,10 @@ void connect_rfid_sensor()
     remoteaddr.sin_addr.s_addr = inet_addr(SICK_ADDR);
     remoteaddr.sin_port = htons(SICK_PORT);
 
-    if (connect(rfid_sockfd, (struct sockaddr*)&remoteaddr, sizeof(remoteaddr)) < 0) 
+    if (connect(rfid_sockfd, (struct sockaddr*)&remoteaddr, sizeof(remoteaddr)) < 0)
     {
-	  mikes_log(ML_ERR, "connecting rfid sensor socket");
-	  perror("mikes:rfid");
+      mikes_log(ML_ERR, "connecting rfid sensor socket");
+      perror("mikes:rfid");
         return;
     }
     mikes_log(ML_INFO, "rfid sensor connected");
@@ -113,12 +111,12 @@ void rfid_sensor_communication_prolog()
     char *init_packet = "sRI 0";
     char *firmware_ver_packet = "sRN FirmwareVersion";
     char *sopas_ver_packet = "sRN SOPASVersion";
- 
+
     char *config0_packet = "sEN QSinv 0";
-	char *config1_packet = "sEN QSinv 1";
-	char *config2_packet = "sEN QSinv 2";
-	char *config3_packet = "sEN QSinv 3";
-	   
+    char *config1_packet = "sEN QSinv 1";
+    char *config2_packet = "sEN QSinv 2";
+    char *config3_packet = "sEN QSinv 3";
+
     send_output_packet(init_packet);
     read_input_packet();
 
@@ -153,30 +151,30 @@ void localize_tags_found()
     local_data.a[i] = tagid[i] % 100;
     sprintf(tagstr, " %d: [%d, %d, %d]", i, local_data.x[i], local_data.y[i], local_data.a[i]);
     mikes_log(ML_INFO, tagstr);
-  } 
+  }
 }
 
 void parse_input_packet()
 {
-	char tagstr[20];
-	
-	if (isdigit(input_packet[0]))
-	{
-		local_data.ntags = strlen(input_packet) / 12;
-		for (int i = 0; i < local_data.ntags; i++)
-		{
-			strncpy(tagstr, input_packet + i * 12 + 4, 8);
-			tagstr[8] = 0;
-			sscanf(tagstr, "%ld", &tagid[i]);
-		}
-		sprintf(tagstr, "#tags: %d", local_data.ntags);
-		mikes_log(ML_INFO, tagstr);
-		for (int i = 0; i < local_data.ntags; i++)
-		{
-			sprintf(tagstr, " -> %8ld", tagid[i]);
-			mikes_log(ML_INFO, tagstr);
-		}
-	}
+    char tagstr[20];
+
+    if (isdigit(input_packet[0]))
+    {
+        local_data.ntags = strlen(input_packet) / 12;
+        for (int i = 0; i < local_data.ntags; i++)
+        {
+            strncpy(tagstr, input_packet + i * 12 + 4, 8);
+            tagstr[8] = 0;
+            sscanf(tagstr, "%ld", &tagid[i]);
+        }
+        sprintf(tagstr, "#tags: %d", local_data.ntags);
+        mikes_log(ML_INFO, tagstr);
+        for (int i = 0; i < local_data.ntags; i++)
+        {
+            sprintf(tagstr, " -> %8ld", tagid[i]);
+            mikes_log(ML_INFO, tagstr);
+        }
+    }
         else local_data.ntags = 0;
 }
 
@@ -187,7 +185,7 @@ void save_the_tags_found()
         pthread_mutex_unlock(&rfid_sensor_lock);
 }
 
-void *rfid_sensor_thread(void *args) 
+void *rfid_sensor_thread(void *args)
 {
     char *start_measuring_packet = "sMN MIStartIn";
     char *stop_measuring_packet = "sMN MIStopIn";
@@ -195,18 +193,19 @@ void *rfid_sensor_thread(void *args)
     rfid_sensor_communication_prolog();
     send_output_packet(start_measuring_packet);
 
-    while (program_runs) 
+    while (program_runs)
     {
         read_input_packet();
         parse_input_packet();
         localize_tags_found();
-	save_the_tags_found();
+    save_the_tags_found();
         usleep(10000);
     }
 
     send_output_packet(stop_measuring_packet);
     mikes_log(ML_INFO, "rfid quits.");
     threads_running_add(-1);
+    return 0;
 }
 
 void init_rfid_sensor()
@@ -223,7 +222,7 @@ void init_rfid_sensor()
 }
 
 
-void get_rfid_data(rfid_data_type* buffer) 
+void get_rfid_data(rfid_data_type* buffer)
 {
     pthread_mutex_lock(&rfid_sensor_lock);
     memcpy(buffer, &rfid_data, sizeof(rfid_data_type));
