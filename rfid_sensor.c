@@ -25,6 +25,7 @@
 
 static pthread_mutex_t rfid_sensor_lock;
 static int rfid_sockfd;
+static char rfid_connected;
 
 static char input_packet[MAX_PACKET_LENGTH];
 
@@ -83,6 +84,7 @@ void send_output_packet(char *packet)
 
 void connect_rfid_sensor()
 {
+    rfid_connected = 0;
     rfid_sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
     if (rfid_sockfd < 0)
@@ -104,6 +106,7 @@ void connect_rfid_sensor()
         return;
     }
     mikes_log(ML_INFO, "rfid sensor connected");
+    rfid_connected = 1;
 }
 
 void rfid_sensor_communication_prolog()
@@ -117,6 +120,7 @@ void rfid_sensor_communication_prolog()
     char *config2_packet = "sEN QSinv 2";
     char *config3_packet = "sEN QSinv 3";
 
+    sleep(15); // sensor boots slowly
     send_output_packet(init_packet);
     read_input_packet();
 
@@ -190,6 +194,7 @@ void *rfid_sensor_thread(void *args)
     char *start_measuring_packet = "sMN MIStartIn";
     char *stop_measuring_packet = "sMN MIStopIn";
 
+    if (!rfid_connected) return 0;
     rfid_sensor_communication_prolog();
     send_output_packet(start_measuring_packet);
 
