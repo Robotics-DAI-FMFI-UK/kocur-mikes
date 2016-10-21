@@ -44,10 +44,10 @@
 #define WAITING_DIGIT2B 11
 #define WAITING_DIGIT4B 12
 
-#define VELOCITY_MEASURING_PERIOD 5
+#define VELOCITY_MEASURING_PERIOD 8
 
-#define DEGREES_PER_SECOND_MULTIPLIER  (VELOCITY_MEASURING_PERIOD / 144.0 * 1000000.0 * 360.0)
-#define TIME_TO_SPEEDUP 20
+#define DEGREES_PER_SECOND_MULTIPLIER  (VELOCITY_MEASURING_PERIOD * 1000000.0 * 360.0 / 144.0)
+#define DEFAULT_LAZINESS 7
 
 Servo motorA;  
 Servo motorB;
@@ -96,11 +96,13 @@ uint8_t inpstate;
 
 uint8_t command;
 uint8_t velocity_regulation;
+uint8_t sending_status;
 
 int16_t wished_speed_left;
 int16_t wished_speed_right;
 int8_t speed_up_left;
 int8_t speed_up_right;
+int8_t laziness;
 
 uint8_t azimuth_speed;    // 0..180, 90=stop
 int16_t azimuth;
@@ -109,9 +111,11 @@ uint8_t azimuth_regulation;
 inline void updateA()
 {
   uint8_t caseA = (digitalRead(ENCA2) << 1) | digitalRead(ENCA1);
+  cases[ncases++] = caseA;
+  if (ncases == 200) ncases = 0;
   if (nextCase[last_caseA] == caseA) counterA--; else counterA++;
   last_caseA = caseA;
-  if (abs(counterA - lastVA) > VELOCITY_MEASURING_PERIOD)
+  if (abs(counterA - lastVA) >= VELOCITY_MEASURING_PERIOD)
   {
     uint32_t tm = micros();
     velocityA = (int16_t)(DEGREES_PER_SECOND_MULTIPLIER / (float)(tm - lastVelocityA));
@@ -124,11 +128,10 @@ inline void updateA()
 inline void updateB()
 {
   uint8_t caseB = (digitalRead(ENCB2) << 1) | digitalRead(ENCB1);
-  cases[ncases++] = caseB;
-  if (ncases == 200) ncases = 0;
+  
   if (nextCase[last_caseB] == caseB) counterB--; else counterB++;
   last_caseB = caseB;
-  if (abs(counterB - lastVB) > VELOCITY_MEASURING_PERIOD)
+  if (abs(counterB - lastVB) >= VELOCITY_MEASURING_PERIOD)
   {
     uint32_t tm = micros();
     velocityB = (int16_t)(DEGREES_PER_SECOND_MULTIPLIER / (float)(tm - lastVelocityB));
@@ -185,6 +188,8 @@ void setup()
     azimuth_regulation = 0;
     azimuth_speed = 90;
     inpstate = WAITING_FOR_START;
+    sending_status = 1;
+    laziness = DEFAULT_LAZINESS;
     
     pinMode(ENCA1, INPUT);  // encA1
     pinMode(ENCA2, INPUT);  // encA2
@@ -248,13 +253,17 @@ void stop_now()
   current_left_speed = 90;
   current_right_speed = 90;
   azimuth_speed = 90;
+  azimuth_regulation = 0;
+  velocity_regulation = 0;
 }
 
 void set_requested_speed()
 {
-  current_left_speed = 90 - (int8_t)((float)requested_left_motor_speed * 1.22);  //1.22 - current measured motor strength differences (different HB25 versions? mechanics?)
-  //current_left_speed = 90 - requested_left_motor_speed; 
-  current_right_speed = 90 + requested_right_motor_speed;
+  if (requested_left_motor_speed > 0)
+    current_left_speed = 90 - (int8_t)((float)requested_left_motor_speed * 1.09);  //1.09 - current measured motor strength differences (different HB25 versions and mechanics)
+  else
+    current_left_speed = 90 - (int8_t)((float)requested_left_motor_speed * 1.096);    
+  current_right_speed = 90 - requested_right_motor_speed;
   motorA.write(current_left_speed);
   motorB.write(current_right_speed);
 }
@@ -286,11 +295,15 @@ void set_wished_speed()
  *  @X          - stop following the azimuth (cancel @A mode)
  *  @VsLLLzRRR  - set wished motor velocities (speed-regulated mode) the robot will try to move so that the actual speed of the left (LLL) and right (RRR) wheel
  *                is as specified (in degrees/second - the same unit as reported in the output status)
+ *  @-          - stop sending status data                
+ *  @+          - resume sending status data (by default they are being sent)
+ *  @L XX       - set speed/up slowdown laziness (1/acceleration) - default = 7
  *                
  *   notes:                
  *     @M cancels @V
  *     @V cancels @M and @A  (either regulate direction or velocity)
  *     @A cancels @V
+ *     @S cancels @M, @V, and @A
  *     @M can used before @A
  *     @A can be cancelled by @X, but it does not stop the robot (will continue moving in random way as abandonded), 
  *        therefore use @S, or zero @M before or right after @X, or @V instead of @X to switch to different regulation mode
@@ -321,24 +334,31 @@ void process_char(uint8_t ch)
                             else if (ch == 'R') counterA = counterB = 0;
                             else if (ch == 'X') azimuth_regulation = 0;
                             else if (ch == 'A') inpstate = WAITING_AZIMUTH1; 
-                            else if ((ch == 'V') || (ch == 'M')) inpstate = WAITING_SIGN1; 
+                            else if (ch == '+') sending_status = 1;
+                            else if (ch == '-') sending_status = 0;
+                            else if ((ch == 'V') || (ch == 'M') || (ch == 'L')) inpstate = WAITING_SIGN1; 
                             command = ch;
                             break;
-    case WAITING_SIGN1: requested_left_motor_sign = (ch == '-')?1:(-1); 
+    case WAITING_SIGN1: requested_left_motor_sign = (ch == '-')?(-1):1; 
                         inpstate = WAITING_DIGIT1;
                         break;
     case WAITING_DIGIT1: requested_left_motor_speed = (ch - '0') * 10;
                          inpstate = WAITING_DIGIT2;
                          break;
     case WAITING_DIGIT2: requested_left_motor_speed += ch - '0';
-                         if (command == 'V') inpstate = WAITING_DIGIT2B; else inpstate = WAITING_SIGN2;
+                         if (command == 'V') inpstate = WAITING_DIGIT2B; 
+                         else if (command == 'L') 
+                         {
+                           laziness = requested_left_motor_speed;
+                           inpstate = WAITING_FOR_START;
+                         } else inpstate = WAITING_SIGN2;                         
                          break;
     case WAITING_DIGIT2B: requested_left_motor_speed *= 10;
                           requested_left_motor_speed += ch - '0';
                           inpstate = WAITING_SIGN2;
                           break;
     case WAITING_SIGN2: requested_left_motor_speed *= requested_left_motor_sign;
-                        requested_right_motor_sign = (ch == '-')?1:(-1); 
+                        requested_right_motor_sign = (ch == '-')?(-1):1; 
                         inpstate = WAITING_DIGIT3;
                         break;                         
     case WAITING_DIGIT3: requested_right_motor_speed = (ch - '0') * 10;                         
@@ -360,6 +380,7 @@ void process_char(uint8_t ch)
                          }
                          break;    
     case WAITING_DIGIT4B: requested_right_motor_speed += ch - '0';
+                          requested_right_motor_speed *= requested_right_motor_sign;
                           inpstate = WAITING_FOR_START;
                           set_wished_speed();
                           velocity_regulation = 1;
@@ -383,36 +404,36 @@ void regulate_speed()
 {
   if (velocityA < wished_speed_left) speed_up_left++;
   else if (velocityA > wished_speed_left) speed_up_left--;
-  if (speed_up_left > TIME_TO_SPEEDUP) 
-  {
-    if (current_left_speed < 180) current_left_speed++;
-    speed_up_left = 0;
-  }
-  else if (speed_up_left < -TIME_TO_SPEEDUP)
+  if (speed_up_left > laziness) 
   {
     if (current_left_speed > 0) current_left_speed--;
     speed_up_left = 0;
   }
+  else if (speed_up_left < -laziness)
+  {
+    if (current_left_speed < 180) current_left_speed++;
+    speed_up_left = 0;
+  }
   if (velocityB < wished_speed_right) speed_up_right++;
   else if (velocityB > wished_speed_right) speed_up_right--;
-  if (speed_up_right > TIME_TO_SPEEDUP) 
-  {
-    if (current_right_speed < 180) current_right_speed++;
-    speed_up_right = 0;
-  }
-  else if (speed_up_right < -TIME_TO_SPEEDUP)
+  if (speed_up_right > laziness) 
   {
     if (current_right_speed > 0) current_right_speed--;
     speed_up_right = 0;
   }
+  else if (speed_up_right < -laziness)
+  {
+    if (current_right_speed < 180) current_right_speed++;
+    speed_up_right = 0;
+  }
   motorA.write(current_left_speed);  
-  motorB.write(current_right_speed);
+  motorB.write(current_right_speed);  
 }
 
 void update_speed_according_to_dir(int current_heading)
 {
   int delta = angle_difference(azimuth, current_heading);
-  Serial.print("delta="); Serial.print(delta); Serial.println();
+  //Serial.print("delta="); Serial.print(delta); Serial.print("az="); Serial.print(azimuth); Serial.print("h="); Serial.print(current_heading);Serial.println();
   
   if (delta > 3)
   {
@@ -445,30 +466,34 @@ void loop()
       heading += 2 * M_PI;
     int heading_int = (int)(heading * 180/M_PI);
 
-    Serial.print("$");
-    Serial.print(counterA); Serial.print(" ");
-    Serial.print(counterB); Serial.print("\t");
-    Serial.print(velocityA); Serial.print(" ");
-    Serial.print(velocityB); Serial.print("\t");
     if (azimuth_regulation) update_speed_according_to_dir(heading_int);
     if (velocity_regulation) regulate_speed();
     uint32_t tm = micros();
     if (tm - lastVelocityA > 250000) velocityA = 0;  // falls to 0 after 0.25s inactivity on encoders
     if (tm - lastVelocityB > 250000) velocityB = 0; 
-    Serial.print(analogRead(DIST1)); Serial.print(" ");
-    Serial.print(analogRead(DIST2)); Serial.print(" ");
-    Serial.print(analogRead(DIST3)); Serial.print(" ");
-    Serial.print(analogRead(CUBE)); Serial.print("\t");
-    Serial.print(heading_int); Serial.print("\t");
-    Serial.print(ax); Serial.print(" ");
-    Serial.print(ay); Serial.print(" ");
-    Serial.print(az); Serial.print("\t");
-    Serial.print(gx); Serial.print(" ");
-    Serial.print(gy); Serial.print(" ");
-    Serial.print(gz); Serial.print(" ");
-    //Serial.print(current_left_speed); Serial.print(" ");
-    //Serial.print(current_right_speed); Serial.print(" ");
-    Serial.print("\n");
+    if (sending_status)
+    {
+      Serial.print("$");
+      Serial.print(counterA); Serial.print(" ");
+      Serial.print(counterB); Serial.print("\t");
+      Serial.print(velocityA); Serial.print(" ");
+      Serial.print(velocityB); Serial.print("\t");    
+      Serial.print(analogRead(DIST1)); Serial.print(" ");
+      Serial.print(analogRead(DIST2)); Serial.print(" ");
+      Serial.print(analogRead(DIST3)); Serial.print(" ");
+      Serial.print(analogRead(CUBE)); Serial.print("\t");
+      Serial.print(heading_int); Serial.print("\t");
+      Serial.print(ax); Serial.print(" ");
+      Serial.print(ay); Serial.print(" ");
+      Serial.print(az); Serial.print("\t");
+      Serial.print(gx); Serial.print(" ");
+      Serial.print(gy); Serial.print(" ");
+      Serial.print(gz); Serial.print(" ");
+      Serial.print(occ); Serial.print(" ");
+      //Serial.print(current_left_speed); Serial.print(" ");
+      //Serial.print(current_right_speed); Serial.print(" ");
+      Serial.print("\n");
+    }
 
     while (Serial.available()) process_char(Serial.read());
     delay(20);
