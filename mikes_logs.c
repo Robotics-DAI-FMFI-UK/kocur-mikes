@@ -63,6 +63,20 @@ void mikes_log(unsigned int log_type, char *log_msg)
     printf("%s: %s\n", log_type_str[log_type], log_msg);
 }
 
+void mikes_log_val2(unsigned int log_type, char *log_msg, int val, int val2)
+{
+
+  FILE *f = try_opening_log(log_type);
+  if (f)
+  {
+      fprintf(f, "%s: %s %d %d\n", log_type_str[log_type], log_msg, val, val2);
+      fclose(f);
+  }
+
+  if (mikes_config.print_all_logs_to_console)
+    printf("%s: %s %d %d\n", log_type_str[log_type], log_msg, val, val2);
+}
+
 void mikes_log_val(unsigned int log_type, char *log_msg, int val)
 {
 
