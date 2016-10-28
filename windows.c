@@ -21,12 +21,12 @@ extern cairo_t *map_gui;
 int gui_cairo_check_event(cairo_surface_t *sfc, int block);
 void gui_shutdown();
 
-const int maxx = 7, maxy = 7;
+const int minx = 2, miny = 4, maxx = 5, maxy = 6;
 
 void *gui_thread(void *arg)
 {
     int ranges[RANGE_DATA_COUNT];
-    int tagmap[maxx][maxy];
+    int tagmap[maxx-minx+1][maxy-miny+1];
     double brkAngle = -135 / 180.0 * M_PI;
     double deltaAngle = 0.25 / 180.0 * M_PI;
     double guiWidth = 600;
@@ -69,17 +69,19 @@ void *gui_thread(void *arg)
         cairo_push_group(map_gui);
         cairo_set_source_rgb(map_gui, 1, 1, 1);
         cairo_paint(map_gui);
-        cairo_set_line_width(map_gui, 2);
+        cairo_set_line_width(map_gui, 7);
 
-        for (int i = 0; i < maxx; i++)
-            for (int j = 0; j < maxy; j++)
+        for (int i = minx; i <= maxx; i++)
+            for (int j = miny; j <= maxy; j++)
                 tagmap[i][j] = -1;
 
         for (int i = 0; i < rfid_data.ntags; i++)
+        {
             tagmap[rfid_data.x[i]][rfid_data.y[i]] = rfid_data.a[i];
+        }
 
-        for (int i = 0; i < maxx; i++)
-            for (int j = 0; j < maxy; j++)
+        for (int i = minx; i <= maxx; i++)
+            for (int j = miny; j <= maxy; j++)
             {
                 switch(tagmap[i][j]){
                     case -1:
