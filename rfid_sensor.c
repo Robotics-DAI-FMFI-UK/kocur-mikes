@@ -161,7 +161,8 @@ void localize_tags_found()
 void parse_input_packet()
 {
     char tagstr[20];
-
+    static unsigned char saw_anything = 0;
+   
     if (isdigit(input_packet[0]))
     {
         local_data.ntags = strlen(input_packet) / 12;
@@ -178,8 +179,10 @@ void parse_input_packet()
             sprintf(tagstr, " -> %8ld", tagid[i]);
             mikes_log(ML_INFO, tagstr);
         }
+        saw_anything = 1;
     }
-        else local_data.ntags = 0;
+    else if (saw_anything) saw_anything = 0;
+    else local_data.ntags = 0;
 }
 
 void save_the_tags_found()
@@ -203,7 +206,7 @@ void *rfid_sensor_thread(void *args)
         read_input_packet();
         parse_input_packet();
         localize_tags_found();
-    save_the_tags_found();
+        save_the_tags_found();
         usleep(10000);
     }
 
