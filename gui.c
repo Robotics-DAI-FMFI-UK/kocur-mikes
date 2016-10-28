@@ -45,28 +45,32 @@ int gui_cairo_check_event(cairo_surface_t *sfc, int block)
    }
 }
 
+static Display *dsp;
+static Screen *scr;
+static int screen;
+static unsigned char x_opened;
 
 cairo_surface_t *gui_cairo_create_x11_surface(int *x, int *y)
 {
-   Display *dsp;
-   Drawable da;
-   Screen *scr;
-   int screen;
-   cairo_surface_t *sfc;
+    Drawable da;
+    cairo_surface_t *sfc;
 
-   if ((dsp = XOpenDisplay(0)) == 0)
-   {
-    mikes_log(ML_WARN, "could not open X display, will not use graphics");
-    return 0;
-   }
-   screen = DefaultScreen(dsp);
-   scr = DefaultScreenOfDisplay(dsp);
-   if (!*x || !*y)
-   {
-      *x = WidthOfScreen(scr), *y = HeightOfScreen(scr);
-      da = XCreateSimpleWindow(dsp, DefaultRootWindow(dsp), 0, 0, *x, *y, 0, 0, 0);
-      gui_fullscreen (dsp, da);
-   }
+    if (!x_opened)
+    {
+        if ((dsp = XOpenDisplay(0)) == 0)
+        {
+            mikes_log(ML_WARN, "could not open X display, will not use graphics");
+            return 0;
+        }
+        screen = DefaultScreen(dsp);
+        scr = DefaultScreenOfDisplay(dsp);
+    }
+    if (!*x || !*y)
+    {
+         *x = WidthOfScreen(scr), *y = HeightOfScreen(scr);
+         da = XCreateSimpleWindow(dsp, DefaultRootWindow(dsp), 0, 0, *x, *y, 0, 0, 0);
+         gui_fullscreen (dsp, da);
+    }
    else
       da = XCreateSimpleWindow(dsp, DefaultRootWindow(dsp), 0, 0, *x, *y, 0, 0, 0);
    XSelectInput(dsp, da, ButtonPressMask | KeyPressMask);
@@ -75,6 +79,7 @@ cairo_surface_t *gui_cairo_create_x11_surface(int *x, int *y)
    sfc = cairo_xlib_surface_create(dsp, da, DefaultVisual(dsp, screen), *x, *y);
    cairo_xlib_surface_set_size(sfc, *x, *y);
 
+   x_opened = 1;
    return sfc;
 }
 
@@ -87,6 +92,8 @@ extern void *gui_thread(void *arg);
 
 void init_gui()
 {
+    x_opened = 0;
+
     if (!mikes_config.with_gui)
     {
         mikes_log(ML_INFO, "gui supressed by config.");
