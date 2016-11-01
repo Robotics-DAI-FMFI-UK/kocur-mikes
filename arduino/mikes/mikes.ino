@@ -1,13 +1,7 @@
-#include "I2Cdev.h"
+#include <Wire.h>
 #include "MPU6050.h"
 #include "HMC5883L.h"
 #include "Servo.h"
-
-// Arduino Wire library is required if I2Cdev I2CDEV_ARDUINO_WIRE implementation
-// is used in I2Cdev.h
-#if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
-#include "Wire.h"
-#endif
 
 #define LED_PIN 13
 
@@ -52,17 +46,12 @@
 Servo motorA;  
 Servo motorB;
 
-// class default I2C address is 0x68
-// specific I2C addresses may be passed as a parameter here
-// AD0 low = 0x68 (default for InvenSense evaluation board)
-// AD0 high = 0x69
-MPU6050 accelgyro;
-//MPU6050 accelgyro(0x69); // <-- use for AD0 high
+HMC5883L compass;
+MPU6050 mpu;
+uint8_t mpu_initialized;
 
 int16_t ax, ay, az;
 int16_t gx, gy, gz;
-
-HMC5883L mag;
 
 int16_t mx, my, mz;
 
@@ -179,6 +168,49 @@ int angle_difference(int alpha, int beta)
   return diff;
 }
 
+void setup_mpu(void)
+{
+  if (!mpu.begin(MPU6050_SCALE_2000DPS, MPU6050_RANGE_2G))
+  {
+    mpu_initialized = 0;
+    return;
+  }
+
+  mpu.setI2CMasterModeEnabled(false);
+  mpu.setI2CBypassEnabled(true) ;
+  mpu.setSleepEnabled(false);
+
+  // Calibrate gyroscope. The calibration must be at rest.
+  mpu.calibrateGyro();
+  
+  // Set threshold sensivty. Default 3.
+  mpu.setThreshold(3);
+
+  // Initialize HMC5883L
+  if (!compass.begin()) 
+  { 
+    mpu_initialized = 0;
+    return;
+  }
+  
+  // Set measurement range
+  compass.setRange(HMC5883L_RANGE_1_3GA);
+  
+  // Set measurement mode
+  compass.setMeasurementMode(HMC5883L_CONTINOUS);
+  
+  // Set data rate
+  compass.setDataRate(HMC5883L_DATARATE_30HZ);
+  
+  // Set number of samples averaged
+  compass.setSamples(HMC5883L_SAMPLES_8);
+  
+  // Set calibration offset. See HMC5883L_calibration.ino
+  compass.setOffset(-271, 66);
+
+  mpu_initialized = 1;
+}
+
 void setup() 
 {
     counterA = 0; counterB = 0; lastVA = 0; lastVB = 0;
@@ -217,11 +249,7 @@ void setup()
         Fastwire::setup(400, true);
     #endif
 
-    accelgyro.initialize();
-    accelgyro.setI2CBypassEnabled(true);
-    delay(1);    
-    mag.initialize();
-    delay(1);
+    setup_mpu();
 
     Serial.begin(115200);
     pinMode(LED_PIN, OUTPUT);
@@ -456,14 +484,36 @@ void update_speed_according_to_dir(int current_heading)
 
 void loop() 
 {
-    // read raw accel/gyro measurements from device
-    accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+    // read accel/gyro measurements from device
+    Vector normAccel = mpu.readNormalizeAccel();
+    ax = normAccel.XAxis;
+    ay = normAccel.YAxis;
+    az = normAccel.ZAxis;
 
-    // read raw heading measurements from device
-    mag.getHeading(&mx, &my, &mz);
-    float heading = atan2(my, mx);
-    if(heading < 0)
-      heading += 2 * M_PI;
+    Vector normGyro = mpu.readNormalizeGyro();
+    gx = normGyro.XAxis;
+    gy = normGyro.YAxis;
+    gz = normGyro.ZAxis;
+
+    // read heading measurements from device
+    Vector norm = compass.readNormalize();
+
+    // Calculate heading
+    float heading = atan2(norm.YAxis, norm.XAxis);
+
+    // Set declination angle on your location and fix heading
+    // You can find your declination on: http://magnetic-declination.com/
+    // (+) Positive or (-) for negative
+    // For Bratislava declination angle is 4'15E (positive)
+    // Formula: (deg + (min / 60.0)) / (180 / M_PI);
+    float declinationAngle = (4.0 + (15.0 / 60.0)) / (180 / M_PI);
+    heading += declinationAngle;
+
+    // Correct for heading < 0deg and heading > 360deg
+    if (heading < 0) heading += 2 * PI;
+    if (heading > 2 * PI) heading -= 2 * PI;
+
+    // Convert to degrees
     int heading_int = (int)(heading * 180/M_PI);
 
     if (azimuth_regulation) update_speed_according_to_dir(heading_int);
