@@ -31,7 +31,7 @@ void init_mikes_logs()
   if (mikes_config.print_all_logs_to_console) mikes_log(ML_INFO, "printing all logs to console");
 }
 
-static char *log_type_str[3] = { "INFO", "WARN", " ERR" };
+static char *log_type_str[4] = { "INFO", "WARN", " ERR", "DEBG" };
 
 FILE *try_opening_log(unsigned int log_type)
 {

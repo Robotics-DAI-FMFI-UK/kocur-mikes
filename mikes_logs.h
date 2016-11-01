@@ -1,7 +1,8 @@
 #ifndef _MIKES_LOGS_H_
 #define _MIKES_LOGS_H_
 
-#define ML_MAX_TYPE 2
+#define ML_MAX_TYPE 3
+#define ML_DEBUG 3
 #define ML_ERR 2
 #define ML_WARN 1
 #define ML_INFO 0
