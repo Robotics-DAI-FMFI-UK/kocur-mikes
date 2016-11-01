@@ -43,6 +43,8 @@
 #define DEGREES_PER_SECOND_MULTIPLIER  (VELOCITY_MEASURING_PERIOD * 1000000.0 * 360.0 / 144.0)
 #define DEFAULT_LAZINESS 7
 
+#define STARTING_FROM_ZERO_ADDITIVE_BIAS 19
+
 Servo motorA;  
 Servo motorB;
 
@@ -93,7 +95,7 @@ int8_t speed_up_left;
 int8_t speed_up_right;
 int8_t laziness;
 
-uint8_t azimuth_speed;    // 0..180, 90=stop
+int16_t azimuth_speed;    // -90..90, 0=stop
 int16_t azimuth;
 uint8_t azimuth_regulation;
 
@@ -163,8 +165,8 @@ ISR (PCINT0_vect) // handle pin change interrupt for D8 to D13 here
 int angle_difference(int alpha, int beta)
 {
   int diff = beta - alpha;
-  if (diff > 1800) return diff - 3600;
-  else if (diff < -1800) return diff + 3600;
+  if (diff > 180) return diff - 360;
+  else if (diff < -180) return diff + 360;
   return diff;
 }
 
@@ -218,7 +220,7 @@ void setup()
     velocity_regulation = 0;
     azimuth = 0;
     azimuth_regulation = 0;
-    azimuth_speed = 90;
+    azimuth_speed = 0;
     inpstate = WAITING_FOR_START;
     sending_status = 1;
     laziness = DEFAULT_LAZINESS;
@@ -257,8 +259,8 @@ void setup()
 
 int8_t requested_left_motor_sign;
 int8_t requested_right_motor_sign;
-int16_t requested_left_motor_speed;
-int16_t requested_right_motor_speed;
+int8_t requested_left_motor_speed;
+int8_t requested_right_motor_speed;
 
 void stop_now()
 {
@@ -280,18 +282,18 @@ void stop_now()
   motorB.write(90);
   current_left_speed = 90;
   current_right_speed = 90;
-  azimuth_speed = 90;
+  azimuth_speed = 0;
   azimuth_regulation = 0;
   velocity_regulation = 0;
 }
 
-void set_requested_speed()
+void set_requested_speed(int8_t lt, int8_t rt)
 {
-  if (requested_left_motor_speed > 0)
-    current_left_speed = 90 - (int8_t)((float)requested_left_motor_speed * 1.09);  //1.09 - current measured motor strength differences (different HB25 versions and mechanics)
+  if (lt > 0)
+    current_left_speed = 90 - (int8_t)((float)lt * 1.09);  //1.09 - current measured motor strength differences (different HB25 versions and mechanics)
   else
-    current_left_speed = 90 - (int8_t)((float)requested_left_motor_speed * 1.096);    
-  current_right_speed = 90 - requested_right_motor_speed;
+    current_left_speed = 90 - (int8_t)((float)lt * 1.096);    
+  current_right_speed = 90 - rt;
   motorA.write(current_left_speed);
   motorB.write(current_right_speed);
 }
@@ -302,13 +304,13 @@ void set_wished_speed()
   wished_speed_right = requested_right_motor_speed;
   if (current_left_speed == 0) 
   {
-      if (requested_left_motor_speed > 0) current_left_speed = 90 + 19;
-      else if (requested_left_motor_speed < 0) current_left_speed = 90 - 19;
+      if (requested_left_motor_speed > 0) current_left_speed = 90 - STARTING_FROM_ZERO_ADDITIVE_BIAS;
+      else if (requested_left_motor_speed < 0) current_left_speed = 90 + STARTING_FROM_ZERO_ADDITIVE_BIAS;
   }
   if (current_right_speed == 0) 
   {
-      if (requested_right_motor_speed > 0) current_right_speed = 90 + 19;
-      else if (requested_right_motor_speed < 0) current_right_speed = 90 - 19;
+      if (requested_right_motor_speed > 0) current_right_speed = 90 - STARTING_FROM_ZERO_ADDITIVE_BIAS;
+      else if (requested_right_motor_speed < 0) current_right_speed = 90 + STARTING_FROM_ZERO_ADDITIVE_BIAS;
   }
 }
 
@@ -397,8 +399,8 @@ void process_char(uint8_t ch)
                          {
                             inpstate = WAITING_FOR_START;
                             requested_right_motor_speed *= requested_right_motor_sign;
-                            azimuth_speed = (requested_left_motor_speed + requested_right_motor_speed) / 2;
-                            set_requested_speed();
+                            azimuth_speed = (int8_t)(((int16_t)requested_left_motor_speed + (int16_t)requested_right_motor_speed) / (int16_t)2);
+                            set_requested_speed(requested_left_motor_speed, requested_right_motor_speed);
                             velocity_regulation = 0;
                          }
                          else if (command == 'V')
@@ -462,24 +464,45 @@ void update_speed_according_to_dir(int current_heading)
 {
   int delta = angle_difference(azimuth, current_heading);
   //Serial.print("delta="); Serial.print(delta); Serial.print("az="); Serial.print(azimuth); Serial.print("h="); Serial.print(current_heading);Serial.println();
+
+  int16_t lt, rt;
   
-  if (delta > 3)
+  if (delta < -14)
   {
-    current_right_speed = 90 + 2 * (azimuth_speed - 90) /3;
-    current_left_speed = azimuth_speed;
+    rt = -azimuth_speed;
+    lt = azimuth_speed;    
   }
-  else if (delta < -3)
+  else if (delta < -4)
   {
-    current_right_speed = azimuth_speed;
-    current_left_speed = 90 + (azimuth_speed - 90) * 2 / 3;
+    rt = 2 * azimuth_speed / 3;
+    lt = azimuth_speed;
+  }
+  else if (delta < 0)
+  {
+    rt = 4 * azimuth_speed / 5;
+    lt = azimuth_speed;    
+  }
+  else if (delta > 14)
+  {
+    rt = azimuth_speed;
+    lt = -azimuth_speed;    
+  }
+  else if (delta > 4)
+  {
+    rt = azimuth_speed;
+    lt = 2 * azimuth_speed / 3;    
+  }
+  else if (delta > 0)
+  {
+    rt = azimuth_speed;
+    lt = 4 * azimuth_speed / 5;    
   }
   else
   {
-    current_right_speed = azimuth_speed;
-    current_left_speed = azimuth_speed;
+     rt = azimuth_speed;
+     lt = azimuth_speed;
   }
-  motorA.write(current_left_speed);
-  motorB.write(current_right_speed);
+  set_requested_speed((int8_t)lt, (int8_t)rt);
 }
 
 void loop() 
