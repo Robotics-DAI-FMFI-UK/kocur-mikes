@@ -259,8 +259,8 @@ void setup()
 
 int8_t requested_left_motor_sign;
 int8_t requested_right_motor_sign;
-int8_t requested_left_motor_speed;
-int8_t requested_right_motor_speed;
+int16_t requested_left_motor_speed;
+int16_t requested_right_motor_speed;
 
 void stop_now()
 {
@@ -287,7 +287,7 @@ void stop_now()
   velocity_regulation = 0;
 }
 
-void set_requested_speed(int8_t lt, int8_t rt)
+void set_requested_speed(int16_t lt, int16_t rt)
 {
   if (lt > 0)
     current_left_speed = 90 - (int8_t)((float)lt * 1.09);  //1.09 - current measured motor strength differences (different HB25 versions and mechanics)
@@ -502,7 +502,7 @@ void update_speed_according_to_dir(int current_heading)
      rt = azimuth_speed;
      lt = azimuth_speed;
   }
-  set_requested_speed((int8_t)lt, (int8_t)rt);
+  set_requested_speed(lt, rt);
 }
 
 void loop() 
