@@ -8,9 +8,11 @@
 #include "base_module.h"
 #include "util.h"
 
-#define CRITICAL_AVOIDING_DISTANCE     700
-#define CRITICAL_OBSTACLE_MINIMUM_SIZE  30
-#define CHANGE_PERIOD 7000000L
+#define CRITICAL_AVOIDING_DISTANCE       700
+#define CRITICAL_OBSTACLE_MINIMUM_SIZE   30
+#define AVOID_PERPENDICULAR_DISTANCE     MM2COUNTER(700)
+#define NORMAL_NAVIGATION_SPEED          12
+#define CHANGE_DISTANCE                  MM2COUNTER(1700)
 
 static short original_heading;
 
@@ -41,15 +43,15 @@ void turn_away_from_obstacle()
    base_data_type base_data;
 
    mikes_log(ML_INFO, "avoid");
+   short old_heading = get_current_azimuth();
    get_base_data(&base_data);
-   short old_heading = base_data.heading;
-   set_motor_speeds(20, -20);
+   short old_dist = (base_data.counterA + base_data.counterB) / 2;
+   follow_azimuth((old_heading + 90) % 360);
    do {
      get_base_data(&base_data);
-     //printf("%d %d -> diff %d\n", old_heading, base_data.heading, angle_difference(old_heading, base_data.heading));
      usleep(10000);
-   } while (program_runs && (abs(angle_difference(old_heading, base_data.heading)) < 90));
-  set_motor_speeds(20, 20);
+   } while (program_runs && (((base_data.counterA + base_data.counterB) / 2 - old_dist) < AVOID_PERPENDICULAR_DISTANCE));
+  follow_azimuth(old_heading);
 }
 
 void avoid_range_obstacle(int *ranges)
@@ -58,35 +60,18 @@ void avoid_range_obstacle(int *ranges)
       turn_away_from_obstacle();
 }
 
-void debug_navigation()
-{
-    while(1)
-    {
-        set_motor_speeds(30, 30);
-        sleep(5);
-        set_motor_speeds(-30, -30);
-        sleep(5);
-        stop_now();
-        sleep(2);
-    }
-}
-
 void *navigation_thread(void *arg)
 {
     int ranges[RANGE_DATA_COUNT];
     base_data_type base_data;
+    sleep(3);
     get_base_data(&base_data);
     original_heading = base_data.heading;
-
     mikes_log_val(ML_INFO, "original heading: ", original_heading);
 
-    sleep(5);
-
-    //debug_navigation();
-
     int attack = 1;
-    long next_change = usec() + CHANGE_PERIOD;
-    set_motor_speeds(20, 20);
+    reset_counters();
+    set_motor_speeds(NORMAL_NAVIGATION_SPEED, NORMAL_NAVIGATION_SPEED);
     follow_azimuth(original_heading);
     mikes_log(ML_INFO, "navigate: put");
 
@@ -95,13 +80,17 @@ void *navigation_thread(void *arg)
         get_range_data(ranges);
         avoid_range_obstacle(ranges);
 
-        long tm = usec();
-        if (tm > next_change)
+        get_base_data(&base_data);
+        long dist = (base_data.counterA + base_data.counterB) / 2;
+
+        if (dist > CHANGE_DISTANCE)
         {
           attack = 1 - attack;
           follow_azimuth(attack?original_heading:((original_heading + 180) % 360));
-          next_change = CHANGE_PERIOD + tm;
           mikes_log(ML_INFO, attack?"navigate: put":"navigate: fetch");
+          reset_counters();
+          wait_for_new_base_data();
+          wait_for_new_base_data();
         }
     }
     mikes_log(ML_INFO, "navigation quits.");
