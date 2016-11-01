@@ -60,9 +60,10 @@ void avoid_range_obstacle(int *ranges)
       turn_away_from_obstacle();
 }
 
+static int ranges[RANGE_DATA_COUNT];
+
 void *navigation_thread(void *arg)
 {
-    int ranges[RANGE_DATA_COUNT];
     base_data_type base_data;
     sleep(3);
     get_base_data(&base_data);
