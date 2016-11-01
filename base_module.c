@@ -25,7 +25,7 @@ static int fdW[2];
 
 static pid_t plink_child;
 
-static unsigned char new_base_data_arrived;
+static volatile unsigned char new_base_data_arrived;
 static unsigned char base_initialized;
 
 void connect_base_module()
