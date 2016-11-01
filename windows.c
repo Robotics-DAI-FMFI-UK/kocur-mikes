@@ -13,6 +13,12 @@
 #include "range_sensor.h"
 #include "rfid_sensor.h"
 
+#define MAP_ZOOM_FACTOR 80
+#define MAP_XOFFSET -120
+#define MAP_YOFFSET -270
+
+#define MAX_MAP_SIZE 32
+
 extern cairo_surface_t *gui_surface;
 extern cairo_t *gui;
 extern cairo_surface_t *map_gui_surface;
@@ -23,16 +29,16 @@ void gui_shutdown();
 
 const int minx = 2, miny = 4, maxx = 5, maxy = 6;
 
+static rfid_data_type rfid_data;
+static int ranges[RANGE_DATA_COUNT];
+static int tagmap[MAX_MAP_SIZE][MAX_MAP_SIZE];
+
 void *gui_thread(void *arg)
 {
-    int ranges[RANGE_DATA_COUNT];
-    int tagmap[maxx-minx+1][maxy-miny+1];
     double brkAngle = -135 / 180.0 * M_PI;
     double deltaAngle = 0.25 / 180.0 * M_PI;
     double guiWidth = 600;
     double guiHeight = 600;
-
-    static rfid_data_type rfid_data;
 
     while (program_runs)
     {
@@ -46,12 +52,15 @@ void *gui_thread(void *arg)
 
         for (int i = 0; i < RANGE_DATA_COUNT; i++)
         {
+            if (ranges[i] > 8000) ranges[i] = 8000;
+
             int x = (int)(-ranges[i] / 8000.0 * guiWidth * 0.45 * sin(brkAngle + i * deltaAngle) +
                   guiWidth / 2);
             int y = (int)(ranges[i] / 8000.0 * guiWidth * 0.45 * cos(brkAngle + i * deltaAngle) +
                   guiHeight / 2);
             cairo_set_source_rgb(gui, 0.1, 0.1, 0.8);
-            cairo_move_to(gui, x, guiHeight - y);
+            
+              cairo_move_to(gui, x, guiHeight - y);
         cairo_line_to(gui, guiWidth / 2, guiHeight / 2);
         cairo_stroke(gui);
             cairo_set_source_rgb(gui, 1, 0.1, 0.2);
@@ -77,7 +86,12 @@ void *gui_thread(void *arg)
 
         for (int i = 0; i < rfid_data.ntags; i++)
         {
-            tagmap[rfid_data.x[i]][rfid_data.y[i]] = rfid_data.a[i];
+            int x = rfid_data.x[i];
+            int y = rfid_data.y[i];
+            if ((x < minx) || (x > maxx) || (y < miny) || (y > maxy))
+                mikes_log_val2(ML_WARN, "tag coordinates are out of map: ", x, y);
+            else
+                tagmap[rfid_data.x[i]][rfid_data.y[i]] = rfid_data.a[i];
         }
 
         for (int i = minx; i <= maxx; i++)
@@ -104,7 +118,7 @@ void *gui_thread(void *arg)
                         break;
 
                 }
-                cairo_arc(map_gui, i*30+50, j*30+50, 7, 0, 2 * M_PI);
+                cairo_arc(map_gui, i * MAP_ZOOM_FACTOR + MAP_XOFFSET, j * MAP_ZOOM_FACTOR + MAP_YOFFSET, 7, 0, 2 * M_PI);
                 cairo_stroke(map_gui);
             }
 
