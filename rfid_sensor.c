@@ -43,13 +43,14 @@ void read_input_packet()
 
     int ptr = 0;
     do {
-        if (read(rfid_sockfd, &ch, 1) < 0)
+        int nread;
+        if ((nread = read(rfid_sockfd, &ch, 1)) < 0)
         {
             perror("mikes:rfid");
             mikes_log(ML_ERR, "reading response from rfid sensor");
             return;
         }
-        input_packet[ptr++] = ch;
+        if ((nread > 0) && (ptr < MAX_PACKET_LENGTH)) input_packet[ptr++] = ch;
     } while (program_runs && (ch != ETX));
 
     input_packet[--ptr] = 0;
@@ -146,7 +147,7 @@ static rfid_data_type local_data;
 
 void localize_tags_found()
 {
-  char tagstr[50];
+  char tagstr[80];
 
   for (int i = 0; i < local_data.ntags; i++)
   {
@@ -160,7 +161,7 @@ void localize_tags_found()
 
 void parse_input_packet()
 {
-    char tagstr[20];
+    char tagstr[40];
     static unsigned char saw_anything = 0;
    
     if (isdigit(input_packet[0]))
