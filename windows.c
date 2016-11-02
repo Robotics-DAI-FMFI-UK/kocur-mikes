@@ -32,6 +32,7 @@ const int minx = 2, miny = 4, maxx = 5, maxy = 6;
 static rfid_data_type rfid_data;
 static int ranges[RANGE_DATA_COUNT];
 static int tagmap[MAX_MAP_SIZE][MAX_MAP_SIZE];
+static segments_type segments;
 
 void *gui_thread(void *arg)
 {
@@ -40,10 +41,14 @@ void *gui_thread(void *arg)
     double guiWidth = 600;
     double guiHeight = 600;
 
+    int actual_seg = 0;
+
     while (program_runs)
     {
+        actual_seg = 0;
         // LASER
         get_range_data(ranges);
+        get_range_segments(&segments, 90*4, 135);
 
         cairo_push_group(gui);
         cairo_set_source_rgb(gui, 1, 1, 1);
@@ -52,20 +57,39 @@ void *gui_thread(void *arg)
 
         for (int i = 0; i < RANGE_DATA_COUNT; i++)
         {
-            if (ranges[i] > 8000) ranges[i] = 8000;
+
+            if (ranges[i] > MAX_DISTANCE)
+                ranges[i] = MAX_DISTANCE;
 
             int x = (int)(-ranges[i] / 8000.0 * guiWidth * 0.45 * sin(brkAngle + i * deltaAngle) +
                   guiWidth / 2);
             int y = (int)(ranges[i] / 8000.0 * guiWidth * 0.45 * cos(brkAngle + i * deltaAngle) +
                   guiHeight / 2);
+
             cairo_set_source_rgb(gui, 0.1, 0.1, 0.8);
-            
-              cairo_move_to(gui, x, guiHeight - y);
-        cairo_line_to(gui, guiWidth / 2, guiHeight / 2);
-        cairo_stroke(gui);
-            cairo_set_source_rgb(gui, 1, 0.1, 0.2);
-        cairo_arc(gui, x, guiHeight - y, 3, 0, 2 * M_PI);
-        cairo_stroke(gui);
+            cairo_move_to(gui, x, guiHeight - y);
+            cairo_line_to(gui, guiWidth / 2, guiHeight / 2);
+            cairo_stroke(gui);
+
+            if(actual_seg < (segments.nsegs_found)){
+                if( i < segments.firstray[actual_seg]){ // before segment
+                    cairo_set_source_rgb(gui, 1, 0.1, 0.2);
+                }else if( i > segments.lastray[actual_seg]){ // after segment
+                    actual_seg += 1;
+                    cairo_set_source_rgb(gui, 1, 0.1, 0.2);
+                }else{  // in segment
+                    if(segments.width[actual_seg] < 400)
+                        cairo_set_source_rgb(gui, 0, 1, 0);
+                    else
+                        cairo_set_source_rgb(gui, (double)actual_seg/(double)segments.nsegs_found, (double)actual_seg/(double)segments.nsegs_found, (double)actual_seg/(double)segments.nsegs_found);
+                }
+            }
+            else{
+                cairo_set_source_rgb(gui, 1, 0.1, 0.2);
+            }
+//            cairo_set_source_rgb(gui, color, 0.1, 0.2);
+            cairo_arc(gui, x, guiHeight - y, 3, 0, 2 * M_PI);
+            cairo_stroke(gui);
         }
         //cairo_stroke(gui);
         cairo_pop_group_to_source(gui);

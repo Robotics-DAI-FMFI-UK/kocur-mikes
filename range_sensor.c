@@ -18,11 +18,14 @@
 #include <unistd.h>
 
 #define BUFFER_SIZE 5000
+#define MAX_ERROR_RAYS 5
+#define MAX_NEIGHBOR_DIFF 60
 
 pthread_mutex_t range_sensor_lock;
 int *range_data;
 
 static int *local_data;
+static int *detection_data;
 static int sockfd;
 
 void connect_range_sensor()
@@ -158,7 +161,8 @@ void init_range_sensor()
     pthread_t t;
     range_data = (int *) malloc(sizeof(int) * RANGE_DATA_COUNT);
     local_data = (int *) malloc(sizeof(int) * RANGE_DATA_COUNT);
-    if ((range_data == 0) || (local_data == 0))
+    detection_data = (int *) malloc(sizeof(int) * RANGE_DATA_COUNT);
+    if ((range_data == 0) || (local_data == 0) || (detection_data == 0))
     {
       perror("mikes:range");
       mikes_log(ML_ERR, "insufficient memory");
@@ -181,3 +185,77 @@ void get_range_data(int* buffer)
     pthread_mutex_unlock(&range_sensor_lock);
 }
 
+short size_of_object(short a, short b, double gama){ // a=start, b=end - using Law of cosines
+    return round(sqrt( a*a + b*b - 2*a*b*cos(gama) ));
+}
+
+void get_range_segments(segments_type *segments, int angular_detecting_range, int min_seg_size)
+{
+    pthread_mutex_lock(&range_sensor_lock);
+    memcpy(detection_data, range_data, sizeof(int) * RANGE_DATA_COUNT);
+    pthread_mutex_unlock(&range_sensor_lock);
+
+    short starting = RANGE_DATA_COUNT/2 - angular_detecting_range/2;
+    short ending = RANGE_DATA_COUNT/2 + angular_detecting_range/2;
+
+    segments->nsegs_found = 0;
+
+    short missing = 0;
+    short error_rate = 0;
+    unsigned long error_sum = 0;
+
+    short firstsi = starting; // first seen index
+    short lastsi = starting; // last seen index
+    for(int i=starting+1; i < ending; i++){
+        if ( (abs( detection_data[i] - detection_data[lastsi]) < MAX_NEIGHBOR_DIFF) && ( detection_data[i] < MAX_DISTANCE)){
+            // same object
+            lastsi = i;
+            missing = 0;
+        } else {
+            error_sum += abs( detection_data[i] - detection_data[lastsi]);
+            error_rate += 1;
+            missing +=1;
+            if( missing >= MAX_ERROR_RAYS ){ // CONST
+                // new object
+                if( (detection_data[firstsi] < MAX_DISTANCE) && (lastsi-firstsi > MAX_ERROR_RAYS) ){
+                    short size = size_of_object(detection_data[firstsi], detection_data[lastsi], (lastsi-firstsi+1)*SIZE_OF_ONE_STEP );
+                    if( size >= min_seg_size){
+                        segments->dist[segments->nsegs_found] = (detection_data[firstsi]+detection_data[lastsi])/2; // count from first and last point. It maybe count like avg from all non-error values.
+                        segments->width[segments->nsegs_found] = size;
+                        segments->alpha[segments->nsegs_found] = ((firstsi+lastsi)/2 - RANGE_DATA_COUNT/2) / SIZE_OF_ONE_DEG;
+                        segments->firstray[segments->nsegs_found] = firstsi;
+                        segments->lastray[segments->nsegs_found] = lastsi;
+                        segments->nsegs_found += 1;
+/*
+                        if(error_sum>=MAX_ERROR_RAYS*65533+detection_data[lastsi]) // CONST
+                            error_sum -= MAX_ERROR_RAYS*65533;// TODO - nefunguje
+                        error_rate -= MAX_ERROR_RAYS; // CONST
+                        char tagstr[200];
+                        sprintf(tagstr, "new object!!! first:%5d last:%5d Fval:%5d Lval:%5d size:%5d dist:%5d alpha:%5d error_rate:%3d error_sum:%8lu sizeInDeg:%5.2f sizeInRad:%7.5f",
+                            firstsi,
+                            lastsi,
+                            detection_data[firstsi],
+                            detection_data[lastsi],
+                            size,
+                            (detection_data[firstsi]+detection_data[lastsi])/2,
+                            (firstsi+lastsi)/2,
+                            error_rate,
+                            error_sum,
+                            ((double)(lastsi-firstsi+1))/4,
+                            (lastsi-firstsi+1)*SIZE_OF_ONE_STEP);
+                        mikes_log(ML_DEBUG, tagstr);
+*/
+                    }
+                }
+                missing = 0;
+                error_rate = 0;
+                error_sum = 0;
+
+                i -= MAX_ERROR_RAYS-1;
+                firstsi = lastsi = i;
+            }
+        }
+    }
+
+    return;
+}
