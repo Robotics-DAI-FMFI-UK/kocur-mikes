@@ -87,6 +87,8 @@ cairo_surface_t *gui_surface;
 cairo_t *gui;
 cairo_surface_t *map_gui_surface;
 cairo_t *map_gui;
+cairo_surface_t *cp_gui_surface;
+cairo_t *cp_gui;
 
 extern void *gui_thread(void *arg);
 
@@ -97,6 +99,7 @@ void init_gui()
     if (!mikes_config.with_gui)
     {
         mikes_log(ML_INFO, "gui supressed by config.");
+        start_automatically = 1;
         return;
     }
     int width = 600;
@@ -104,11 +107,15 @@ void init_gui()
     gui_surface = gui_cairo_create_x11_surface(&width, &height);
     gui = cairo_create(gui_surface);
 
-
     int mapwidth = 350;
     int mapheight = 250;
     map_gui_surface = gui_cairo_create_x11_surface(&mapwidth, &mapheight);
     map_gui = cairo_create(map_gui_surface);
+
+    int cpwidth = 350;
+    int cpheight = 250;
+    cp_gui_surface = gui_cairo_create_x11_surface(&cpwidth, &cpheight);
+    cp_gui = cairo_create(cp_gui_surface);
 
     pthread_t t;
     if (pthread_create(&t, 0, gui_thread, 0) != 0)
@@ -124,6 +131,7 @@ void gui_shutdown()
     if (!mikes_config.with_gui) return;
     cairo_destroy(gui);
     cairo_destroy(map_gui);
+    cairo_destroy(cp_gui);
     Display *dsp = cairo_xlib_surface_get_display(gui_surface);
     cairo_surface_destroy(gui_surface);
     cairo_surface_destroy(map_gui_surface);

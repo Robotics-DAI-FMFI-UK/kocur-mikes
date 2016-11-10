@@ -9,4 +9,13 @@
 
 void init_gui();
 
+extern cairo_surface_t *gui_surface;
+extern cairo_t *gui;
+extern cairo_surface_t *map_gui_surface;
+extern cairo_t *map_gui;
+extern cairo_surface_t *cp_gui_surface;
+extern cairo_t *cp_gui;
+
+int gui_cairo_check_event(cairo_surface_t *sfc, int block);
+
 #endif

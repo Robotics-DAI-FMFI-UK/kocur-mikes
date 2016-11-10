@@ -100,6 +100,7 @@ void read_base_packet()
                 perror("read()");
                 exit(-1);
             }
+            else usleep(1);
         }
     } while (program_runs && (ch != '$'));
 
@@ -115,10 +116,13 @@ void read_base_packet()
                   perror("read()");
                   exit(-1);
               }
+              else { usleep(1); continue; }
           }
           lnptr += numRead;
           if (lnptr > 1023) break;
         } while (program_runs && (line[lnptr - 1] != '\n'));
+
+        if (lnptr > 0) line[lnptr - 1] = 0;
 
         more_packets_in_queue = 0;
         while (program_runs)

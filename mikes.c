@@ -15,6 +15,9 @@
 volatile unsigned char program_runs;
 static pthread_mutex_t mikes_lock;
 volatile unsigned short threads_running;
+volatile unsigned char user_control;
+volatile unsigned char user_dir;
+volatile unsigned char start_automatically;
 
 void threads_running_add(short x)
 {
@@ -48,8 +51,7 @@ int main(int argc, char **argv)
 
   while (program_runs)
   {
-    for (int i = 0; i < 6; i++)
-      if (program_runs) sleep(1);
+     sleep(1);
   }
 
   int old_tr = threads_running + 1;

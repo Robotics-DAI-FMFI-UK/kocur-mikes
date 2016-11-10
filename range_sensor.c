@@ -189,7 +189,7 @@ short size_of_object(short a, short b, double gama){ // a=start, b=end - using L
     return round(sqrt( a*a + b*b - 2*a*b*cos(gama) ));
 }
 
-void get_range_segments(segments_type *segments, int angular_detecting_range, int min_seg_size)
+void get_range_segments(segments_type *segments, int angular_detecting_range, int min_seg_size, int max_seg_size)
 {
     pthread_mutex_lock(&range_sensor_lock);
     memcpy(detection_data, range_data, sizeof(int) * RANGE_DATA_COUNT);
@@ -219,7 +219,7 @@ void get_range_segments(segments_type *segments, int angular_detecting_range, in
                 // new object
                 if( (detection_data[firstsi] < MAX_DISTANCE) && (lastsi-firstsi > MAX_ERROR_RAYS) ){
                     short size = size_of_object(detection_data[firstsi], detection_data[lastsi], (lastsi-firstsi+1)*SIZE_OF_ONE_STEP );
-                    if( size >= min_seg_size){
+                    if(( size >= min_seg_size)&&( size <= max_seg_size)){
                         segments->dist[segments->nsegs_found] = (detection_data[firstsi]+detection_data[lastsi])/2; // count from first and last point. It maybe count like avg from all non-error values.
                         segments->width[segments->nsegs_found] = size;
                         segments->alpha[segments->nsegs_found] = ((firstsi+lastsi)/2 - RANGE_DATA_COUNT/2) / SIZE_OF_ONE_DEG;

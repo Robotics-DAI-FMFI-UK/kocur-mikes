@@ -15,6 +15,7 @@
 #define CHANGE_DISTANCE                  MM2COUNTER(1700)
 
 static short original_heading;
+static unsigned char user_moving;
 
 unsigned char obstacle_in_range_data(int *ranges)
 {
@@ -60,7 +61,7 @@ void avoid_range_obstacle(int *ranges)
       turn_away_from_obstacle();
 }
 
-static int ranges[RANGE_DATA_COUNT];
+//static int ranges[RANGE_DATA_COUNT];
 
 void *navigation_thread(void *arg)
 {
@@ -70,30 +71,140 @@ void *navigation_thread(void *arg)
     original_heading = base_data.heading;
     mikes_log_val(ML_INFO, "original heading: ", original_heading);
 
-    int attack = 1;
+    static segments_type segments;
+    int status = 0;
     reset_counters();
+/*
     set_motor_speeds(NORMAL_NAVIGATION_SPEED, NORMAL_NAVIGATION_SPEED);
     follow_azimuth(original_heading);
     mikes_log(ML_INFO, "navigate: put");
+*/
+    long dist;
+    int lastdir;
+    int laststatus = 0;
+
+    while (!start_automatically) usleep(100000);
 
     while (program_runs)
     {
-        get_range_data(ranges);
-        avoid_range_obstacle(ranges);
-
-        get_base_data(&base_data);
-        long dist = (base_data.counterA + base_data.counterB) / 2;
-
-        if (dist > CHANGE_DISTANCE)
-        {
-          attack = 1 - attack;
-          follow_azimuth(attack?original_heading:((original_heading + 180) % 360));
-          mikes_log(ML_INFO, attack?"navigate: put":"navigate: fetch");
-          reset_counters();
-          wait_for_new_base_data();
-          wait_for_new_base_data();
+        if (user_control && (status != 6)) 
+        { 
+          stop_now();
+          mikes_log(ML_INFO, "user in charge\n");
+          status = 6; // USER CONTROL
         }
+        else if ((!user_control) && (status == 6))
+        {
+          status = laststatus;
+          mikes_log(ML_INFO, "autonomous\n");
+        }
+
+        if(laststatus != status){
+            mikes_log_val(ML_INFO, "status changed to:",status);
+            laststatus = status;
+        }
+        get_base_data(&base_data);
+        get_range_segments(&segments, 180*4, 155, 350);
+        switch(status){
+            case 0: // STOP
+                reset_counters();
+                set_motor_speeds(0,0);
+                status = 1;
+                dist = 0;
+                break;
+            case 1: // searching
+                if(segments.nsegs_found > 0){ // have something
+                    status = 2; // catching
+                    set_motor_speeds(NORMAL_NAVIGATION_SPEED, NORMAL_NAVIGATION_SPEED);
+                }
+                break;
+            case 2: // catching
+                if((base_data.cube < 50) || (segments.nsegs_found == 0)){ //TODO HAVE IT? no SEE IT?
+                    dist = (base_data.counterA + base_data.counterB) / 2;
+                    status = 3; // turn to home
+                    break;
+                }
+                int mindistID = 0;
+                for(int i=1; i<segments.nsegs_found; i++)
+                    if(segments.dist[mindistID] > segments.dist[i])
+                        mindistID = i;
+                follow_azimuth(segments.alpha[mindistID]);
+                lastdir=base_data.heading;
+                break;
+            case 3: // turn to home
+                if(0){ //TODO see home
+                    reset_counters();
+                    status = 4;
+                }
+                break;
+            case 4: // going home
+                follow_azimuth((lastdir+720)%360);
+                if(((base_data.counterA + base_data.counterB) / 2) >= dist){// at home?
+                    status = 5;// turn to base direction
+                }
+                break;
+            case 5: // turing to base direction
+                follow_azimuth(original_heading);
+                if(0){ //TODO is this base direction?
+                    status = 0;
+                }
+                break;
+            case 6: // user control
+                switch (user_dir)
+                {
+                    case 1:  // right
+                             set_motor_speeds(NORMAL_NAVIGATION_SPEED, NORMAL_NAVIGATION_SPEED);
+                             follow_azimuth((base_data.heading + 30) % 360);
+			     user_moving = 1;
+			     //printf("follow %d\n", (base_data.heading + 30) % 360);
+                             break;
+                    case 2:  // left
+                             set_motor_speeds(NORMAL_NAVIGATION_SPEED, NORMAL_NAVIGATION_SPEED);
+                             follow_azimuth((base_data.heading + 330) % 360);
+			     user_moving = 1;
+			     //printf("follow %d\n", (base_data.heading + 330) % 360);
+                             break;
+		    case 3:  // back
+                             set_motor_speeds(NORMAL_NAVIGATION_SPEED, NORMAL_NAVIGATION_SPEED);
+                             follow_azimuth((base_data.heading + 180) % 360);
+			     //printf("follow %d\n", (base_data.heading + 180) % 360);
+			     user_moving = 1;
+                             break;
+                    case 4:  // on/off
+                             if (user_moving) 
+                             {
+                               stop_now();
+                               user_moving = 0;
+                             }
+                             else {
+                               set_motor_speeds(NORMAL_NAVIGATION_SPEED, NORMAL_NAVIGATION_SPEED);
+                               follow_azimuth(base_data.heading);
+			       //printf("follow %d\n", base_data.heading);
+			       user_moving = 1;
+                             }
+                }
+                user_dir = 0;
+                break;
+        }
+    /*        get_range_data(ranges);
+            avoid_range_obstacle(ranges);
+
+            get_base_data(&base_data);
+            long dist = (base_data.counterA + base_data.counterB) / 2;
+
+            if (dist > CHANGE_DISTANCE)
+            {
+              attack = 1 - attack;
+              follow_azimuth(attack?original_heading:((original_heading + 180) % 360));
+              mikes_log(ML_INFO, attack?"navigate: put":"navigate: fetch");
+              reset_counters();
+              wait_for_new_base_data();
+              wait_for_new_base_data();
+            }
+    */
+        usleep(1);
     }
+
     mikes_log(ML_INFO, "navigation quits.");
     threads_running_add(-1);
     return 0;

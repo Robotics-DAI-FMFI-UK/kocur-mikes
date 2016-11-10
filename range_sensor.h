@@ -29,6 +29,6 @@ typedef struct seg_struc {
 
 void init_range_sensor();
 void get_range_data(int* buffer);
-void get_range_segments(segments_type *segments, int angular_detecting_range, int min_seg_size);
+void get_range_segments(segments_type *segments, int angular_detecting_range, int min_seg_size, int max_seg_size);
 
 #endif

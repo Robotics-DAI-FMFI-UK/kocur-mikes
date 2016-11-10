@@ -163,7 +163,7 @@ void parse_input_packet()
 {
     char tagstr[40];
     static unsigned char saw_anything = 0;
-   
+
     if (isdigit(input_packet[0]))
     {
         local_data.ntags = strlen(input_packet) / 12;

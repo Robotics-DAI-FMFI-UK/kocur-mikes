@@ -12,17 +12,20 @@
 #include "mikes_logs.h"
 #include "range_sensor.h"
 #include "rfid_sensor.h"
+#include "base_module.h" 
+#include "gui.h"
 
 #define MAP_ZOOM_FACTOR 80
 #define MAP_XOFFSET -120
 #define MAP_YOFFSET -270
+#define COMPASS_RADIUS 70
 
 #define MAX_MAP_SIZE 32
 
-extern cairo_surface_t *gui_surface;
-extern cairo_t *gui;
-extern cairo_surface_t *map_gui_surface;
-extern cairo_t *map_gui;
+#define DISPLAY_FREQUENCY 10
+#define LOOP_DELAY 30000
+#define DECAY 0.95
+#define NOSEE_THRESHOLD 0.2
 
 int gui_cairo_check_event(cairo_surface_t *sfc, int block);
 void gui_shutdown();
@@ -32,7 +35,10 @@ const int minx = 2, miny = 4, maxx = 5, maxy = 6;
 static rfid_data_type rfid_data;
 static int ranges[RANGE_DATA_COUNT];
 static int tagmap[MAX_MAP_SIZE][MAX_MAP_SIZE];
+static double decaymap[MAX_MAP_SIZE][MAX_MAP_SIZE];
+static double decay = DECAY;
 static segments_type segments;
+
 
 void *gui_thread(void *arg)
 {
@@ -40,15 +46,31 @@ void *gui_thread(void *arg)
     double deltaAngle = 0.25 / 180.0 * M_PI;
     double guiWidth = 600;
     double guiHeight = 600;
+    double cpWidth = 350;
+    double cpHeight = 200;
+    base_data_type base_data;
+    int disp_counter = 0;
 
     int actual_seg = 0;
 
+    for (int i = minx; i <= maxx; i++)
+       for (int j = miny; j <= maxy; j++)
+          decaymap[i][j] = 0;
+
+    for (int i = minx; i <= maxx; i++)
+        for (int j = miny; j <= maxy; j++)
+            tagmap[i][j] = -1;
+
     while (program_runs)
     {
+      disp_counter++;
+      if (disp_counter == DISPLAY_FREQUENCY)
+      {
+        disp_counter = 0;
         actual_seg = 0;
         // LASER
         get_range_data(ranges);
-        get_range_segments(&segments, 90*4, 135);
+        get_range_segments(&segments, 180*4, 155, 350);
 
         cairo_push_group(gui);
         cairo_set_source_rgb(gui, 1, 1, 1);
@@ -95,7 +117,7 @@ void *gui_thread(void *arg)
         cairo_pop_group_to_source(gui);
         cairo_paint(gui);
         cairo_surface_flush(gui_surface);
-        gui_cairo_check_event(gui_surface, 0);
+        //gui_cairo_check_event(gui_surface, 0);
 
         // MAP
         get_rfid_data(&rfid_data);
@@ -104,10 +126,6 @@ void *gui_thread(void *arg)
         cairo_paint(map_gui);
         cairo_set_line_width(map_gui, 7);
 
-        for (int i = minx; i <= maxx; i++)
-            for (int j = miny; j <= maxy; j++)
-                tagmap[i][j] = -1;
-
         for (int i = 0; i < rfid_data.ntags; i++)
         {
             int x = rfid_data.x[i];
@@ -115,7 +133,12 @@ void *gui_thread(void *arg)
             if ((x < minx) || (x > maxx) || (y < miny) || (y > maxy))
                 mikes_log_val2(ML_WARN, "tag coordinates are out of map: ", x, y);
             else
-                tagmap[rfid_data.x[i]][rfid_data.y[i]] = rfid_data.a[i];
+            {
+                int xcoor = rfid_data.x[i];
+                int ycoor = rfid_data.y[i];
+                tagmap[xcoor][ycoor] = rfid_data.a[i];
+                decaymap[xcoor][ycoor] = 1;
+            }
         }
 
         for (int i = minx; i <= maxx; i++)
@@ -126,16 +149,16 @@ void *gui_thread(void *arg)
                         cairo_set_source_rgb(map_gui, 0, 0, 0);
                         break;
                     case 0:
-                        cairo_set_source_rgb(map_gui, 0, 0, 1);
+                        cairo_set_source_rgb(map_gui, 0, 0, decaymap[i][j]);
                         break;
                     case 1:
-                        cairo_set_source_rgb(map_gui, 0, 1, 0);
+                        cairo_set_source_rgb(map_gui, 0, decaymap[i][j], 0);
                         break;
                     case 2:
-                        cairo_set_source_rgb(map_gui, 1, 0, 0);
+                        cairo_set_source_rgb(map_gui, decaymap[i][j], 0, 0);
                         break;
                     case 3:
-                        cairo_set_source_rgb(map_gui, 1, 0, 1);
+                        cairo_set_source_rgb(map_gui, decaymap[i][j], 0, decaymap[i][j]);
                         break;
                     default:
                         cairo_set_source_rgb(map_gui, 1, 1, 1);
@@ -146,14 +169,83 @@ void *gui_thread(void *arg)
                 cairo_stroke(map_gui);
             }
 
-
         //cairo_stroke(gui);
         cairo_pop_group_to_source(map_gui);
         cairo_paint(map_gui);
         cairo_surface_flush(map_gui_surface);
-        gui_cairo_check_event(map_gui_surface, 0);
+        //gui_cairo_check_event(map_gui_surface, 0);
 
-    usleep(300000);
+        cairo_push_group(cp_gui);
+        cairo_set_source_rgb(cp_gui, 1, 1, 1);
+        cairo_paint(cp_gui);
+        cairo_set_line_width(cp_gui, 3);
+        cairo_set_source_rgb(cp_gui, 0.1, 0.3, 1);
+        cairo_arc(cp_gui, cpWidth / 2, cpHeight / 2, COMPASS_RADIUS + 5, 0, 2 * M_PI);
+        cairo_stroke(cp_gui);
+        get_base_data(&base_data);
+        double compass_x = COMPASS_RADIUS * sin(M_PI * base_data.heading / 180.0);
+        double compass_y = COMPASS_RADIUS * cos(M_PI * base_data.heading / 180.0);
+        cairo_set_source_rgb(cp_gui, 1, 0, 0.2);
+        cairo_move_to(cp_gui, cpWidth / 2 + compass_x, cpHeight / 2 - compass_y);
+        cairo_line_to(cp_gui, cpWidth / 2, cpHeight / 2);
+        cairo_stroke(cp_gui);
+        cairo_pop_group_to_source(cp_gui);
+        cairo_paint(cp_gui);
+        cairo_surface_flush(cp_gui_surface);
+      }
+
+        int event = gui_cairo_check_event(cp_gui_surface, 0);
+        switch (event)
+        {
+         case 0xff53:   // right arrow
+            user_dir = 1;
+            user_control = 1;
+            //printf("----------------------RIGHT\n");
+            break;
+
+         case 0xff51:   // left arrow
+            user_dir = 2;
+            user_control = 1;
+            //printf("----------------------LEFT\n");
+            break;
+
+         case 65364:    // down arrow
+            user_dir = 3;
+            user_control = 1;
+            //printf("----------------------BACK\n");
+            break;
+
+         case 65362:    // up arrow
+            user_dir = 4;
+            user_control = 1;
+            //printf("----------------------ON/OFF\n");
+            break;
+
+         case 0xff1b:   // Esc
+            program_runs = 0;
+            mikes_log(ML_INFO, "quit by ESC\n");
+            break;
+
+         case -1:       // left mouse button
+            //printf("-----------------------USER CONTROL\n");
+
+            if (!start_automatically) start_automatically = 1;
+            else user_control = 1 - user_control;
+
+            break;
+
+         //default:
+            //printf("event %d\n", event);
+        }
+
+        for (int i = minx; i <= maxx; i++)
+           for (int j = miny; j <= maxy; j++)
+           {
+              decaymap[i][j] *= decay;
+              if (decaymap[i][j] < NOSEE_THRESHOLD) tagmap[i][j] = -1;
+           }
+
+    usleep(LOOP_DELAY);
     }
 
     gui_shutdown();
