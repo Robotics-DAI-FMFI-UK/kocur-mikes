@@ -81,7 +81,7 @@ void *navigation_thread(void *arg)
 */
     long dist;
     int lastdir;
-    int laststatus = 0;
+    int laststatus = -1;
 
     while (!start_automatically) usleep(100000);
 
@@ -95,7 +95,7 @@ void *navigation_thread(void *arg)
         }
         else if ((!user_control) && (status == 6))
         {
-          status = laststatus;
+          status = 0;
           mikes_log(ML_INFO, "autonomous\n");
         }
 
@@ -119,7 +119,8 @@ void *navigation_thread(void *arg)
                 }
                 break;
             case 2: // catching
-                if((base_data.cube < 50) || (segments.nsegs_found == 0)){ //TODO HAVE IT? no SEE IT?
+                if(!((base_data.cube < 210)&&(base_data.cube > 360)) || (segments.nsegs_found == 0)){ //HAVE IT? no SEE IT?
+                    mikes_log_val(ML_INFO,"have it with value",base_data.cube);
                     dist = (base_data.counterA + base_data.counterB) / 2;
                     status = 3; // turn to home
                     break;
@@ -182,6 +183,13 @@ void *navigation_thread(void *arg)
 			       //printf("follow %d\n", base_data.heading);
 			       user_moving = 1;
                              }
+                             break;
+                    case 5:  // backup now
+                             stop_now();
+                             usleep(500000);
+                             regulated_speed(-20, -20);
+                             user_moving = 1;
+                             break;
                 }
                 user_dir = 0;
                 break;
