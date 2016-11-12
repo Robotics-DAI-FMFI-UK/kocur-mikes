@@ -147,15 +147,15 @@ static rfid_data_type local_data;
 
 void localize_tags_found()
 {
-  char tagstr[80];
+//  char tagstr[80];
 
   for (int i = 0; i < local_data.ntags; i++)
   {
     local_data.x[i] = tagid[i]  / 1000000;
     local_data.y[i] = (tagid[i] / 10000) % 100;
     local_data.a[i] = tagid[i] % 100;
-    sprintf(tagstr, " %d: [%d, %d, %d]", i, local_data.x[i], local_data.y[i], local_data.a[i]);
-    mikes_log(ML_INFO, tagstr);
+//    sprintf(tagstr, " %d: [%d, %d, %d]", i, local_data.x[i], local_data.y[i], local_data.a[i]);
+//    mikes_log(ML_INFO, tagstr);
   }
 }
 
@@ -173,13 +173,14 @@ void parse_input_packet()
             tagstr[8] = 0;
             sscanf(tagstr, "%ld", &tagid[i]);
         }
-        sprintf(tagstr, "#tags: %d", local_data.ntags);
+/*        sprintf(tagstr, "#tags: %d", local_data.ntags);
         mikes_log(ML_INFO, tagstr);
         for (int i = 0; i < local_data.ntags; i++)
         {
             sprintf(tagstr, " -> %8ld", tagid[i]);
             mikes_log(ML_INFO, tagstr);
         }
+*/
         saw_anything = 1;
     }
     else if (saw_anything) saw_anything = 0;
