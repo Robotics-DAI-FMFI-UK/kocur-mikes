@@ -32,13 +32,13 @@ void connect_base_module()
 {
     if (pipe(fdR) < 0)
     {
-        mikes_log(ML_ERR, "base: pipe2()");	
+        mikes_log(ML_ERR, "base: pipe2()");
         base_initialized = 0;
         return;
     }
     if (!pipe(fdW) < 0)
     {
-        mikes_log(ML_ERR, "base: pipe2()");	
+        mikes_log(ML_ERR, "base: pipe2()");
         base_initialized = 0;
         return;
     }
@@ -220,8 +220,8 @@ void reset_counters()
 void regulated_speed(int left_motor, int right_motor)
 {
     char cmd[40];
-    int lm = left_motor;
-    int rm = right_motor;
+    int lm = abs(left_motor);
+    int rm = abs(right_motor);
 
     sprintf(cmd, "@V%c%d%d%d%c%d%d%d", ((left_motor > 0)?' ':'-'),
                                      (lm / 100) % 10,
