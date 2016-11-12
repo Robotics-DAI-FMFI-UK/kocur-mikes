@@ -12,7 +12,7 @@
 #include "mikes_logs.h"
 #include "range_sensor.h"
 #include "rfid_sensor.h"
-#include "base_module.h" 
+#include "base_module.h"
 #include "gui.h"
 
 #define MAP_ZOOM_FACTOR 80
@@ -70,7 +70,7 @@ void *gui_thread(void *arg)
         actual_seg = 0;
         // LASER
         get_range_data(ranges);
-        get_range_segments(&segments, 180*4, 155, 350);
+        get_range_segments(&segments, 180*4, 145, 280);
 
         cairo_push_group(gui);
         cairo_set_source_rgb(gui, 1, 1, 1);
@@ -100,10 +100,10 @@ void *gui_thread(void *arg)
                     actual_seg += 1;
                     cairo_set_source_rgb(gui, 1, 0.1, 0.2);
                 }else{  // in segment
-                    if(segments.width[actual_seg] < 400)
+                    //if(segments.width[actual_seg] < 280)
                         cairo_set_source_rgb(gui, 0, 1, 0);
-                    else
-                        cairo_set_source_rgb(gui, (double)actual_seg/(double)segments.nsegs_found, (double)actual_seg/(double)segments.nsegs_found, (double)actual_seg/(double)segments.nsegs_found);
+                    //else
+                       // cairo_set_source_rgb(gui, (double)actual_seg/(double)segments.nsegs_found, (double)actual_seg/(double)segments.nsegs_found, (double)actual_seg/(double)segments.nsegs_found);
                 }
             }
             else{
@@ -195,6 +195,8 @@ void *gui_thread(void *arg)
       }
 
         int event = gui_cairo_check_event(cp_gui_surface, 0);
+        if ((event != 0) && (!start_automatically)) 
+          start_automatically = 1;
         switch (event)
         {
          case 0xff53:   // right arrow
@@ -226,16 +228,18 @@ void *gui_thread(void *arg)
             mikes_log(ML_INFO, "quit by ESC\n");
             break;
 
+         case 32:  //space - backup now
+            user_dir = 5;
+            user_control = 1;
+            break;
+
          case -1:       // left mouse button
             //printf("-----------------------USER CONTROL\n");
-
-            if (!start_automatically) start_automatically = 1;
-            else user_control = 1 - user_control;
-
+            user_control = 1 - user_control;
             break;
 
          //default:
-            //printf("event %d\n", event);
+         //   printf("event %d\n", event);
         }
 
         for (int i = minx; i <= maxx; i++)
