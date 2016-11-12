@@ -9,6 +9,7 @@ typedef struct {
     int with_gui;
     int print_all_logs_to_console;
     int print_debug_logs;
+    int use_ncurses_control_console;
 } mikes_config_t;
 
 extern mikes_config_t mikes_config;

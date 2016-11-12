@@ -11,6 +11,7 @@
 #include "gui.h"
 #include "config_mikes.h"
 #include "base_module.h"
+#include "ncurses_control.h"
 
 volatile unsigned char program_runs;
 static pthread_mutex_t mikes_lock;
@@ -46,6 +47,7 @@ int main(int argc, char **argv)
   init_range_sensor();
   init_rfid_sensor();
   init_navigation();
+  init_ncurses_control();
 
   init_gui();
 
