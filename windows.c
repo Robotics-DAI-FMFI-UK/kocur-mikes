@@ -27,6 +27,13 @@
 #define DECAY 0.95
 #define NOSEE_THRESHOLD 0.2
 
+#define RIGHT_ARROW 0xff53
+#define LEFT_ARROW 0xff51
+#define UP_ARROW 0xff52 
+#define DOWN_ARROW 0xff54
+#define ESC_KEY 0xff1b
+#define LEFT_MOUSE_BUTTON -1
+
 int gui_cairo_check_event(cairo_surface_t *sfc, int block);
 void gui_shutdown();
 
@@ -79,41 +86,31 @@ void *gui_thread(void *arg)
 
         for (int i = 0; i < RANGE_DATA_COUNT; i++)
         {
+            if (ranges[i] > MAX_DISTANCE) ranges[i] = MAX_DISTANCE;
 
-            if (ranges[i] > MAX_DISTANCE)
-                ranges[i] = MAX_DISTANCE;
-
-            int x = (int)(-ranges[i] / 8000.0 * guiWidth * 0.45 * sin(brkAngle + i * deltaAngle) +
-                  guiWidth / 2);
-            int y = (int)(ranges[i] / 8000.0 * guiWidth * 0.45 * cos(brkAngle + i * deltaAngle) +
-                  guiHeight / 2);
+            int x = (int)(-ranges[i] / 8000.0 * guiWidth * 0.45 * sin(brkAngle + i * deltaAngle) + guiWidth / 2);
+            int y = (int)(ranges[i] / 8000.0 * guiWidth * 0.45 * cos(brkAngle + i * deltaAngle) + guiHeight / 2);
 
             cairo_set_source_rgb(gui, 0.1, 0.1, 0.8);
             cairo_move_to(gui, x, guiHeight - y);
             cairo_line_to(gui, guiWidth / 2, guiHeight / 2);
             cairo_stroke(gui);
 
-            if(actual_seg < (segments.nsegs_found)){
-                if( i < segments.firstray[actual_seg]){ // before segment
-                    cairo_set_source_rgb(gui, 1, 0.1, 0.2);
-                }else if( i > segments.lastray[actual_seg]){ // after segment
+            if(actual_seg < (segments.nsegs_found))
+            {
+                if (i < segments.firstray[actual_seg]) // before segment
+                  cairo_set_source_rgb(gui, 1, 0.1, 0.2);
+                else if (i > segments.lastray[actual_seg])
+                { // after segment
                     actual_seg += 1;
                     cairo_set_source_rgb(gui, 1, 0.1, 0.2);
-                }else{  // in segment
-                    //if(segments.width[actual_seg] < 280)
-                        cairo_set_source_rgb(gui, 0, 1, 0);
-                    //else
-                       // cairo_set_source_rgb(gui, (double)actual_seg/(double)segments.nsegs_found, (double)actual_seg/(double)segments.nsegs_found, (double)actual_seg/(double)segments.nsegs_found);
-                }
+                } else  // in segment
+                  cairo_set_source_rgb(gui, 0, 1, 0);
             }
-            else{
-                cairo_set_source_rgb(gui, 1, 0.1, 0.2);
-            }
-//            cairo_set_source_rgb(gui, color, 0.1, 0.2);
+            else cairo_set_source_rgb(gui, 1, 0.1, 0.2);
             cairo_arc(gui, x, guiHeight - y, 3, 0, 2 * M_PI);
             cairo_stroke(gui);
         }
-        //cairo_stroke(gui);
         cairo_pop_group_to_source(gui);
         cairo_paint(gui);
         cairo_surface_flush(gui_surface);
@@ -169,7 +166,6 @@ void *gui_thread(void *arg)
                 cairo_stroke(map_gui);
             }
 
-        //cairo_stroke(gui);
         cairo_pop_group_to_source(map_gui);
         cairo_paint(map_gui);
         cairo_surface_flush(map_gui_surface);
@@ -199,42 +195,37 @@ void *gui_thread(void *arg)
           start_automatically = 1;
         switch (event)
         {
-         case 0xff53:   // right arrow
-            user_dir = 1;
+         case RIGHT_ARROW:
+            user_dir = USER_DIR_RIGHT;
             user_control = 1;
-            //printf("----------------------RIGHT\n");
             break;
 
-         case 0xff51:   // left arrow
-            user_dir = 2;
+         case LEFT_ARROW: 
+            user_dir = USER_DIR_LEFT;
             user_control = 1;
-            //printf("----------------------LEFT\n");
             break;
 
-         case 65364:    // down arrow
-            user_dir = 3;
+         case DOWN_ARROW: 
+            user_dir = USER_DIR_BACK;
             user_control = 1;
-            //printf("----------------------BACK\n");
             break;
 
-         case 65362:    // up arrow
-            user_dir = 4;
+         case UP_ARROW: 
+            user_dir = USER_DIR_ONOFF;
             user_control = 1;
-            //printf("----------------------ON/OFF\n");
             break;
 
-         case 0xff1b:   // Esc
+         case ESC_KEY: 
             program_runs = 0;
-            mikes_log(ML_INFO, "quit by ESC\n");
+            mikes_log(ML_INFO, "quit by ESC");
             break;
 
-         case 32:  //space - backup now
-            user_dir = 5;
+         case 32:  
+            user_dir = USER_DIR_BACKUP;
             user_control = 1;
             break;
 
-         case -1:       // left mouse button
-            //printf("-----------------------USER CONTROL\n");
+         case LEFT_MOUSE_BUTTON:       
             user_control = 1 - user_control;
             break;
 

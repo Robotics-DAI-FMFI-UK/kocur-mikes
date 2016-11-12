@@ -5,6 +5,14 @@
 #include "mikes_logs.h"
 #include "config_mikes.h"
 
+#define KEY_UP_ARROW 259
+#define KEY_DOWN_ARROW 258
+#define KEY_LEFT_ARROW 260
+#define KEY_RIGHT_ARROW 261
+#define KEY_ESC 27
+#define KEY_A 97
+#define KEY_SPACE 32
+
 static WINDOW *mainwin;
 
 void *ncurses_control_thread(void *arg)
@@ -22,11 +30,9 @@ void *ncurses_control_thread(void *arg)
 
     /*  Print a prompt and refresh() the screen  */
 
-    mvaddstr(5, 10, "Control Kocur Mikes with arrow keys, space to backup, ESC to quit");
+    mvaddstr(5, 10, "Control Kocur Mikes with arrow keys, space to backup, 'a' to toggle autopilot, ESC to quit");
     mvprintw(7, 10, "You pressed: ");
     refresh();
-
-    /*  Loop until user presses 'q'  */
 
     while (program_runs)
     {
@@ -35,42 +41,43 @@ void *ncurses_control_thread(void *arg)
         deleteln();
         switch (ch)
         {
-            case 259: mvprintw(7, 10, "on/off");
-                     user_dir = 4;
+            case KEY_UP_ARROW: mvprintw(7, 10, "on/off");
+                     user_dir = USER_DIR_ONOFF;
                      user_control = 1;
                       break;
-            case 260: mvprintw(7, 10, "left");
-                     user_dir = 2;
+            case KEY_LEFT_ARROW: mvprintw(7, 10, "left");
+                     user_dir = USER_DIR_LEFT;
                      user_control = 1;
                       break;
-            case 261: mvprintw(7, 10, "right");
-                     user_dir = 3;
+            case KEY_RIGHT_ARROW: mvprintw(7, 10, "right");
+                     user_dir = USER_DIR_RIGHT;
                      user_control = 1;
                        break;
-            case 258: mvprintw(7, 10, "back");
-                     user_dir = 3;
+            case KEY_DOWN_ARROW: mvprintw(7, 10, "back");
+                     user_dir = USER_DIR_BACK;
                      user_control = 1;
                        break;
-            case 32: mvprintw(7, 10, "backup");
-                     user_dir = 5;
+            case KEY_SPACE: mvprintw(7, 10, "backup");
+                     user_dir = USER_DIR_BACKUP;
                      user_control = 1;
                      break;
-            case 97: user_control = 1 - user_control;
+            case KEY_A: user_control = 1 - user_control;
                      mvprintw(7, 10, "autonomous: %d", user_control);
                      break; 
-            case 27: program_runs = 0;
-                     mikes_log(ML_INFO, "quit by ESC\n");
+            case KEY_ESC: program_runs = 0;
+                     mikes_log(ML_INFO, "quit by ESC");
                      break;
             default: mvprintw(7, 10, "key: %d", ch);
         }
         refresh();
     }
 
-    /*  Clean up after ourselves  */
-
     delwin(mainwin);
     endwin();
     refresh();
+
+    mikes_log(ML_INFO, "ncurses quits.");
+    threads_running_add(-1);
 
     return 0;
 }

@@ -90,13 +90,13 @@ void *navigation_thread(void *arg)
         if (user_control && (status != 6)) 
         { 
           stop_now();
-          mikes_log(ML_INFO, "user in charge\n");
+          mikes_log(ML_INFO, "user in charge");
           status = 6; // USER CONTROL
         }
         else if ((!user_control) && (status == 6))
         {
           status = 0;
-          mikes_log(ML_INFO, "autonomous\n");
+          mikes_log(ML_INFO, "autonomous");
         }
 
         if(laststatus != status){
@@ -153,25 +153,25 @@ void *navigation_thread(void *arg)
             case 6: // user control
                 switch (user_dir)
                 {
-                    case 1:  // right
+                    case USER_DIR_RIGHT:  
                              set_motor_speeds(NORMAL_NAVIGATION_SPEED, NORMAL_NAVIGATION_SPEED);
                              follow_azimuth((base_data.heading + 30) % 360);
 			     user_moving = 1;
 			     //printf("follow %d\n", (base_data.heading + 30) % 360);
                              break;
-                    case 2:  // left
+                    case USER_DIR_LEFT: 
                              set_motor_speeds(NORMAL_NAVIGATION_SPEED, NORMAL_NAVIGATION_SPEED);
                              follow_azimuth((base_data.heading + 330) % 360);
 			     user_moving = 1;
 			     //printf("follow %d\n", (base_data.heading + 330) % 360);
                              break;
-		    case 3:  // back
+		    case USER_DIR_BACK: 
                              set_motor_speeds(NORMAL_NAVIGATION_SPEED, NORMAL_NAVIGATION_SPEED);
                              follow_azimuth((base_data.heading + 180) % 360);
 			     //printf("follow %d\n", (base_data.heading + 180) % 360);
 			     user_moving = 1;
                              break;
-                    case 4:  // on/off
+                    case USER_DIR_ONOFF:  
                              if (user_moving) 
                              {
                                stop_now();
@@ -184,7 +184,7 @@ void *navigation_thread(void *arg)
 			       user_moving = 1;
                              }
                              break;
-                    case 5:  // backup now
+                    case USER_DIR_BACKUP:  
                              stop_now();
                              usleep(500000);
                              regulated_speed(-20, -20);

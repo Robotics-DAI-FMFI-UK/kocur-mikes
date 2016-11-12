@@ -1,6 +1,12 @@
 #ifndef _MIKES_DAEMON_H_
 #define _MIKES_DAEMON_H_
 
+#define USER_DIR_LEFT   1
+#define USER_DIR_RIGHT  2
+#define USER_DIR_BACKUP 3
+#define USER_DIR_ONOFF  4
+#define USER_DIR_BACK   5
+
 extern volatile unsigned char program_runs;
 extern volatile unsigned char user_control;
 extern volatile unsigned char user_dir;
