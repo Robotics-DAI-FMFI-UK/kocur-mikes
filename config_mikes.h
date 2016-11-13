@@ -6,6 +6,7 @@
 #define MIKES_CONFIG "/usr/local/etc/config_mikes.cfg"
 
 typedef struct {
+    int autostart;
     int with_gui;
     int print_all_logs_to_console;
     int print_debug_logs;

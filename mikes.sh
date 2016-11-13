@@ -14,7 +14,7 @@
 case "$1" in
   start)
     echo "Starting mikes "
-    nohup /usr/local/bin/mikes &
+    sudo -u pi nohup /usr/local/bin/mikes autostart &
     ;;
   stop)
     echo "Stopping mikes"

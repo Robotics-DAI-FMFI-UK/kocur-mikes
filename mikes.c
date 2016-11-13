@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <string.h>
 
 #include "public_relations.h"
 #include "range_sensor.h"
@@ -40,6 +41,9 @@ int main(int argc, char **argv)
   signal(SIGTERM, signal_term_handler);
 
   load_config();
+
+  if ((!mikes_config.autostart) && (argc > 1)) 
+    if (strcmp(argv[1], "autostart") == 0) return 0;
 
   init_mikes_logs();
   init_public_relations();
