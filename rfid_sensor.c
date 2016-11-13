@@ -121,7 +121,7 @@ void rfid_sensor_communication_prolog()
     char *config2_packet = "sEN QSinv 2";
     char *config3_packet = "sEN QSinv 3";
 
-    sleep(15); // sensor boots slowly
+    sleep(17); // sensor boots slowly
     send_output_packet(init_packet);
     read_input_packet();
 
