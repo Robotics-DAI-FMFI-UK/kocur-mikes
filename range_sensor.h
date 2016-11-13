@@ -4,10 +4,11 @@
 #include <pthread.h>
 #include <math.h>
 
+/* ray integer calculations are based on the fact that UST-10LX takes exactly 4 rays per degree */
 #define RANGE_DATA_COUNT 1081
 #define TOTAL_ANGLE (3 * M_PI / 2)
 #define TOTAL_ANGLE_DEG 270
-#define SIZE_OF_ONE_STEP (TOTAL_ANGLE / RANGE_DATA_COUNT)
+#define SIZE_OF_ONE_STEP (TOTAL_ANGLE / (RANGE_DATA_COUNT - 1))
 #define SIZE_OF_ONE_DEG ((RANGE_DATA_COUNT - 1) / TOTAL_ANGLE_DEG)
 #define HOKUYO_PORT 10940
 #define HOKUYO_ADDR "169.254.0.10"
@@ -30,5 +31,11 @@ typedef struct seg_struc {
 void init_range_sensor();
 void get_range_data(int* buffer);
 void get_range_segments(segments_type *segments, int angular_detecting_range, int min_seg_size, int max_seg_size);
+
+/* ray: 0..RANGE_DATA_COUNT - 1, returns: 0-360 */
+int ray2azimuth(int ray);
+
+/* alpha: -180..360, returns: ray 0..max, max = RANGE_DATA_COUNT - 1 (out of range clips to 0 or to max) */
+int azimuth2ray(int alpha);
 
 #endif

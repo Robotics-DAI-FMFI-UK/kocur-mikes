@@ -191,9 +191,7 @@ short size_of_object(short a, short b, double gama){ // a=start, b=end - using L
 
 void get_range_segments(segments_type *segments, int angular_detecting_range, int min_seg_size, int max_seg_size)
 {
-    pthread_mutex_lock(&range_sensor_lock);
-    memcpy(detection_data, range_data, sizeof(int) * RANGE_DATA_COUNT);
-    pthread_mutex_unlock(&range_sensor_lock);
+    get_range_data(detection_data);
 
     short starting = RANGE_DATA_COUNT/2 - angular_detecting_range/2;
     short ending = RANGE_DATA_COUNT/2 + angular_detecting_range/2;
@@ -215,14 +213,17 @@ void get_range_segments(segments_type *segments, int angular_detecting_range, in
             error_sum += abs( detection_data[i] - detection_data[lastsi]);
             error_rate += 1;
             missing +=1;
-            if( missing >= MAX_ERROR_RAYS ){ // CONST
+            if (missing >= MAX_ERROR_RAYS)
+            { 
                 // new object
                 if( (detection_data[firstsi] < MAX_DISTANCE) && (lastsi-firstsi > MAX_ERROR_RAYS) ){
                     short size = size_of_object(detection_data[firstsi], detection_data[lastsi], (lastsi-firstsi+1)*SIZE_OF_ONE_STEP );
                     if(( size >= min_seg_size)&&( size <= max_seg_size)){
-                        segments->dist[segments->nsegs_found] = (detection_data[firstsi]+detection_data[lastsi])/2; // count from first and last point. It maybe count like avg from all non-error values.
+                        long dst = 0;
+                        for (int r = firstsi; r <= lastsi; r++) dst += detection_data[r];
+                        segments->dist[segments->nsegs_found] = (int)(dst / (long)(lastsi - firstsi + 1));
                         segments->width[segments->nsegs_found] = size;
-                        segments->alpha[segments->nsegs_found] = ((firstsi+lastsi)/2 - RANGE_DATA_COUNT/2) / SIZE_OF_ONE_DEG;
+                        segments->alpha[segments->nsegs_found] = (RANGE_DATA_COUNT / 2 - (firstsi + lastsi) / 2) / SIZE_OF_ONE_DEG;
                         segments->firstray[segments->nsegs_found] = firstsi;
                         segments->lastray[segments->nsegs_found] = lastsi;
                         segments->nsegs_found += 1;
@@ -259,3 +260,17 @@ void get_range_segments(segments_type *segments, int angular_detecting_range, in
 
     return;
 }
+
+int ray2azimuth(int ray)
+{
+  return (360 + (TOTAL_ANGLE_DEG / 2 - ray / SIZE_OF_ONE_DEG)) % 360;
+}
+
+int azimuth2ray(int alpha)
+{
+  if (360 - alpha <= TOTAL_ANGLE_DEG / 2) alpha -= 360;
+  if (alpha < -TOTAL_ANGLE_DEG / 2) alpha = -TOTAL_ANGLE_DEG / 2;
+  else if (alpha > TOTAL_ANGLE_DEG / 2) alpha = TOTAL_ANGLE_DEG / 2;
+  return RANGE_DATA_COUNT / 2 - alpha * SIZE_OF_ONE_DEG;
+}
+
