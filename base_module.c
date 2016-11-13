@@ -215,6 +215,8 @@ void reset_counters()
       perror("mikes:base");
       mikes_log(ML_ERR, "base: could not reset counters");
     }
+    wait_for_new_base_data();
+    wait_for_new_base_data();
 }
 
 void regulated_speed(int left_motor, int right_motor)
