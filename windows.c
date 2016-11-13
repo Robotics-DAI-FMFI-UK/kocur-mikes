@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <math.h>
 
@@ -34,6 +35,9 @@
 #define ESC_KEY 0xff1b
 #define LEFT_MOUSE_BUTTON -1
 
+#define RAY_USUAL_TYPE 1
+#define RAY_AZIMUTH_TYPE 2
+
 int gui_cairo_check_event(cairo_surface_t *sfc, int block);
 void gui_shutdown();
 
@@ -46,19 +50,45 @@ static double decaymap[MAX_MAP_SIZE][MAX_MAP_SIZE];
 static double decay = DECAY;
 static segments_type segments;
 
+static double guiWidth = 600;
+static double guiHeight = 600;
+
+void draw_ray(int i, int ray_type)
+{
+    int x = (int)(-ranges[i] / 8000.0 * guiWidth * 0.45 * sin(i * SIZE_OF_ONE_STEP - TOTAL_ANGLE / 2) + guiWidth / 2);
+    int y = (int)(ranges[i] / 8000.0 * guiWidth * 0.45 * cos(i * SIZE_OF_ONE_STEP - TOTAL_ANGLE / 2) + guiHeight / 2);
+             
+    if (ray_type == RAY_USUAL_TYPE) 
+      cairo_set_source_rgb(gui, 0.1, 0.1, 0.8);
+    else if (ray_type == RAY_AZIMUTH_TYPE) 
+      cairo_set_source_rgb(gui, 0.8, 0.8, 0.3);
+
+    cairo_move_to(gui, x, guiHeight - y);
+    cairo_line_to(gui, guiWidth / 2, guiHeight / 2);
+    cairo_stroke(gui);
+    cairo_set_source_rgb(gui, 1, 0.3, 0.3);
+    cairo_arc(gui, x, guiHeight - y, 2, 0, 2 * M_PI);
+    cairo_stroke(gui);
+}
+
+void draw_segment(int ray1, int ray2)
+{
+    int x1 = (int)(-ranges[ray1] / 8000.0 * guiWidth * 0.45 * sin(ray1 * SIZE_OF_ONE_STEP - TOTAL_ANGLE / 2) + guiWidth / 2);
+    int y1 = (int)(ranges[ray1] / 8000.0 * guiWidth * 0.45 * cos(ray1 * SIZE_OF_ONE_STEP - TOTAL_ANGLE / 2) + guiHeight / 2);
+    int x2 = (int)(-ranges[ray2] / 8000.0 * guiWidth * 0.45 * sin(ray2 * SIZE_OF_ONE_STEP - TOTAL_ANGLE / 2) + guiWidth / 2);
+    int y2 = (int)(ranges[ray2] / 8000.0 * guiWidth * 0.45 * cos(ray2 * SIZE_OF_ONE_STEP - TOTAL_ANGLE / 2) + guiHeight / 2);
+
+    cairo_set_source_rgb(gui, 1, 1, 0.5);
+    cairo_rectangle(gui, x2, guiHeight - y2, abs(x2 - x1), abs(y2 - y1));
+    cairo_stroke(gui);
+}
 
 void *gui_thread(void *arg)
 {
-    double brkAngle = -135 / 180.0 * M_PI;
-    double deltaAngle = 0.25 / 180.0 * M_PI;
-    double guiWidth = 600;
-    double guiHeight = 600;
     double cpWidth = 350;
     double cpHeight = 200;
     base_data_type base_data;
     int disp_counter = 0;
-
-    int actual_seg = 0;
 
     for (int i = minx; i <= maxx; i++)
        for (int j = miny; j <= maxy; j++)
@@ -73,11 +103,13 @@ void *gui_thread(void *arg)
       disp_counter++;
       if (disp_counter == DISPLAY_FREQUENCY)
       {
+        get_base_data(&base_data);
         disp_counter = 0;
-        actual_seg = 0;
         // LASER
         get_range_data(ranges);
         get_range_segments(&segments, 180*4, 145, 280);
+
+        //mikes_log_val(ML_INFO, "cubes found: ", segments.nsegs_found);
 
         cairo_push_group(gui);
         cairo_set_source_rgb(gui, 1, 1, 1);
@@ -86,31 +118,16 @@ void *gui_thread(void *arg)
 
         for (int i = 0; i < RANGE_DATA_COUNT; i++)
         {
-            if (ranges[i] > MAX_DISTANCE) ranges[i] = MAX_DISTANCE;
-
-            int x = (int)(-ranges[i] / 8000.0 * guiWidth * 0.45 * sin(brkAngle + i * deltaAngle) + guiWidth / 2);
-            int y = (int)(ranges[i] / 8000.0 * guiWidth * 0.45 * cos(brkAngle + i * deltaAngle) + guiHeight / 2);
-
-            cairo_set_source_rgb(gui, 0.1, 0.1, 0.8);
-            cairo_move_to(gui, x, guiHeight - y);
-            cairo_line_to(gui, guiWidth / 2, guiHeight / 2);
-            cairo_stroke(gui);
-
-            if(actual_seg < (segments.nsegs_found))
-            {
-                if (i < segments.firstray[actual_seg]) // before segment
-                  cairo_set_source_rgb(gui, 1, 0.1, 0.2);
-                else if (i > segments.lastray[actual_seg])
-                { // after segment
-                    actual_seg += 1;
-                    cairo_set_source_rgb(gui, 1, 0.1, 0.2);
-                } else  // in segment
-                  cairo_set_source_rgb(gui, 0, 1, 0);
-            }
-            else cairo_set_source_rgb(gui, 1, 0.1, 0.2);
-            cairo_arc(gui, x, guiHeight - y, 3, 0, 2 * M_PI);
-            cairo_stroke(gui);
+          if (ranges[i] > MAX_DISTANCE) ranges[i] = MAX_DISTANCE;
+          draw_ray(i, RAY_USUAL_TYPE);
         }
+
+        for (int i = 0; i < segments.nsegs_found; i++)
+          draw_segment(segments.firstray[i], segments.lastray[i]);
+
+        if (get_current_azimuth() != NO_AZIMUTH)
+          draw_ray(azimuth2ray(get_current_azimuth() - base_data.heading), RAY_AZIMUTH_TYPE);
+
         cairo_pop_group_to_source(gui);
         cairo_paint(gui);
         cairo_surface_flush(gui_surface);
@@ -178,7 +195,6 @@ void *gui_thread(void *arg)
         cairo_set_source_rgb(cp_gui, 0.1, 0.3, 1);
         cairo_arc(cp_gui, cpWidth / 2, cpHeight / 2, COMPASS_RADIUS + 5, 0, 2 * M_PI);
         cairo_stroke(cp_gui);
-        get_base_data(&base_data);
         double compass_x = COMPASS_RADIUS * sin(M_PI * base_data.heading / 180.0);
         double compass_y = COMPASS_RADIUS * cos(M_PI * base_data.heading / 180.0);
         cairo_set_source_rgb(cp_gui, 1, 0, 0.2);
