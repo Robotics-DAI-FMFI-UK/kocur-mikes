@@ -5,6 +5,7 @@
 
 #include "mikes.h"
 #include "mikes_logs.h"
+#include "ncurses_control.h"
 
 void report_status_to_server()
 {
@@ -19,8 +20,11 @@ void *public_relations_thread(void *args)
   while (program_runs)
   {
     report_status_to_server();
-    for (int i = 0; i < 60; i++) 
-      if (program_runs) sleep(1);
+    for (int i = 0; i < 30; i++) 
+    {
+      if (program_runs) sleep(2);
+      rfid_curses_update();
+    }
   }
   mikes_log(ML_INFO, "PR quits.");
   threads_running_add(-1);

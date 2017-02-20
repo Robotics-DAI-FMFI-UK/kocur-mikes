@@ -10,4 +10,7 @@ long msec();
 // return current time in usec (up to 71 minutes)
 long usec();
 
+// say the sentence
+void say(char *sentence);
+
 #endif

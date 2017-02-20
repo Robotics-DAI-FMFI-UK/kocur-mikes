@@ -15,10 +15,12 @@
 #include "rfid_sensor.h"
 #include "base_module.h"
 #include "gui.h"
+#include "mcl.h"
 
-#define MAP_ZOOM_FACTOR 80
-#define MAP_XOFFSET -120
-#define MAP_YOFFSET -270
+#define MAP_ZOOM_FACTOR_HYPO 2
+#define MAP_ZOOM_FACTOR (MAP_ZOOM_FACTOR_HYPO * 40)
+#define MAP_XOFFSET 0 // -120
+#define MAP_YOFFSET 0 // -270
 #define COMPASS_RADIUS 70
 
 #define MAX_MAP_SIZE 32
@@ -30,7 +32,7 @@
 
 #define RIGHT_ARROW 0xff53
 #define LEFT_ARROW 0xff51
-#define UP_ARROW 0xff52 
+#define UP_ARROW 0xff52
 #define DOWN_ARROW 0xff54
 #define ESC_KEY 0xff1b
 #define LEFT_MOUSE_BUTTON -1
@@ -41,9 +43,10 @@
 int gui_cairo_check_event(cairo_surface_t *sfc, int block);
 void gui_shutdown();
 
-const int minx = 2, miny = 4, maxx = 5, maxy = 6;
+const int minx = 1, miny = 1, maxx = 8, maxy = 8;
 
 static rfid_data_type rfid_data;
+static hypo_t hypo[HYPO_COUNT];
 static int ranges[RANGE_DATA_COUNT];
 static int tagmap[MAX_MAP_SIZE][MAX_MAP_SIZE];
 static double decaymap[MAX_MAP_SIZE][MAX_MAP_SIZE];
@@ -57,10 +60,10 @@ void draw_ray(int i, int ray_type)
 {
     int x = (int)(-ranges[i] / 8000.0 * guiWidth * 0.45 * sin(i * SIZE_OF_ONE_STEP - TOTAL_ANGLE / 2) + guiWidth / 2);
     int y = (int)(ranges[i] / 8000.0 * guiWidth * 0.45 * cos(i * SIZE_OF_ONE_STEP - TOTAL_ANGLE / 2) + guiHeight / 2);
-             
-    if (ray_type == RAY_USUAL_TYPE) 
+
+    if (ray_type == RAY_USUAL_TYPE)
       cairo_set_source_rgb(gui, 0.1, 0.1, 0.8);
-    else if (ray_type == RAY_AZIMUTH_TYPE) 
+    else if (ray_type == RAY_AZIMUTH_TYPE)
       cairo_set_source_rgb(gui, 0.8, 0.8, 0.3);
 
     cairo_move_to(gui, x, guiHeight - y);
@@ -182,6 +185,40 @@ void *gui_thread(void *arg)
                 cairo_arc(map_gui, i * MAP_ZOOM_FACTOR + MAP_XOFFSET, j * MAP_ZOOM_FACTOR + MAP_YOFFSET, 7, 0, 2 * M_PI);
                 cairo_stroke(map_gui);
             }
+        get_mcl_data(hypo);
+
+        for (int i = 0; i < HYPO_COUNT; i++)
+        {
+            double x = hypo[i].x;
+            double y = hypo[i].y;
+            double alpha = hypo[i].alpha;
+            double w = hypo[i].w;
+
+            cairo_set_source_rgb(map_gui, 1 - w*0.8 - 0.1, 1 - w*0.8 - 0.1, 1 - w*0.8 - 0.1);
+            cairo_set_line_width(map_gui, 3);
+
+            cairo_set_line_width(map_gui, 1);
+            double hypoax = 5*cos(M_PI * alpha / 180);
+            double hypoay = -5*sin(M_PI * alpha / 180);
+
+            cairo_move_to(map_gui, (int) (x * MAP_ZOOM_FACTOR_HYPO + MAP_ZOOM_FACTOR + MAP_XOFFSET),        (int) (y * MAP_ZOOM_FACTOR_HYPO + MAP_ZOOM_FACTOR + MAP_YOFFSET));
+            cairo_line_to(map_gui, (int) (x * MAP_ZOOM_FACTOR_HYPO + MAP_ZOOM_FACTOR + MAP_XOFFSET+hypoax), (int) (y * MAP_ZOOM_FACTOR_HYPO + MAP_ZOOM_FACTOR + MAP_YOFFSET + hypoay));
+            cairo_stroke(map_gui);
+
+            hypoax = 3*cos(M_PI * alpha / 180 + M_PI/2);
+            hypoay = -3*sin(M_PI * alpha / 180 + M_PI/2);
+            cairo_move_to(map_gui, (int) (x * MAP_ZOOM_FACTOR_HYPO + MAP_ZOOM_FACTOR + MAP_XOFFSET),        (int) (y * MAP_ZOOM_FACTOR_HYPO + MAP_ZOOM_FACTOR + MAP_YOFFSET));
+            cairo_line_to(map_gui, (int) (x * MAP_ZOOM_FACTOR_HYPO + MAP_ZOOM_FACTOR + MAP_XOFFSET+hypoax), (int) (y * MAP_ZOOM_FACTOR_HYPO + MAP_ZOOM_FACTOR + MAP_YOFFSET + hypoay));
+            cairo_stroke(map_gui);
+
+            hypoax = 3*cos(M_PI * alpha / 180-M_PI/2);
+            hypoay = -3*sin(M_PI * alpha / 180- M_PI/2);
+            cairo_move_to(map_gui, (int) (x * MAP_ZOOM_FACTOR_HYPO + MAP_ZOOM_FACTOR + MAP_XOFFSET),        (int) (y * MAP_ZOOM_FACTOR_HYPO + MAP_ZOOM_FACTOR + MAP_YOFFSET));
+            cairo_line_to(map_gui, (int) (x * MAP_ZOOM_FACTOR_HYPO + MAP_ZOOM_FACTOR + MAP_XOFFSET+hypoax), (int) (y * MAP_ZOOM_FACTOR_HYPO + MAP_ZOOM_FACTOR + MAP_YOFFSET + hypoay));
+            cairo_stroke(map_gui);
+
+        }
+
 
         cairo_pop_group_to_source(map_gui);
         cairo_paint(map_gui);
@@ -207,7 +244,7 @@ void *gui_thread(void *arg)
       }
 
         int event = gui_cairo_check_event(cp_gui_surface, 0);
-        if ((event != 0) && (!start_automatically)) 
+        if ((event != 0) && (!start_automatically))
           start_automatically = 1;
         switch (event)
         {
@@ -216,32 +253,32 @@ void *gui_thread(void *arg)
             user_control = 1;
             break;
 
-         case LEFT_ARROW: 
+         case LEFT_ARROW:
             user_dir = USER_DIR_LEFT;
             user_control = 1;
             break;
 
-         case DOWN_ARROW: 
+         case DOWN_ARROW:
             user_dir = USER_DIR_BACK;
             user_control = 1;
             break;
 
-         case UP_ARROW: 
+         case UP_ARROW:
             user_dir = USER_DIR_ONOFF;
             user_control = 1;
             break;
 
-         case ESC_KEY: 
+         case ESC_KEY:
             program_runs = 0;
             mikes_log(ML_INFO, "quit by ESC");
             break;
 
-         case 32:  
+         case 32:
             user_dir = USER_DIR_BACKUP;
             user_control = 1;
             break;
 
-         case LEFT_MOUSE_BUTTON:       
+         case LEFT_MOUSE_BUTTON:
             user_control = 1 - user_control;
             break;
 

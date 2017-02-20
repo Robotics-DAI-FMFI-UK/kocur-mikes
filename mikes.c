@@ -13,6 +13,7 @@
 #include "config_mikes.h"
 #include "base_module.h"
 #include "ncurses_control.h"
+#include "mcl.h"
 
 volatile unsigned char program_runs;
 static pthread_mutex_t mikes_lock;
@@ -42,7 +43,7 @@ int main(int argc, char **argv)
 
   load_config();
 
-  if ((!mikes_config.autostart) && (argc > 1)) 
+  if ((!mikes_config.autostart) && (argc > 1))
     if (strcmp(argv[1], "autostart") == 0) return 0;
 
   init_mikes_logs();
@@ -52,6 +53,7 @@ int main(int argc, char **argv)
   init_rfid_sensor();
   init_navigation();
   init_ncurses_control();
+  init_mcl();
 
   init_gui();
 

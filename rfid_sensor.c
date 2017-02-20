@@ -147,10 +147,13 @@ static rfid_data_type local_data;
 
 void localize_tags_found()
 {
-//  char tagstr[80];
+  //char tagstr[80];
 
   for (int i = 0; i < local_data.ntags; i++)
   {
+    //sprintf(tagstr, " %ld", tagid[i]);
+    //mikes_log(ML_INFO, tagstr);
+
     local_data.x[i] = tagid[i]  / 1000000;
     local_data.y[i] = (tagid[i] / 10000) % 100;
     local_data.a[i] = tagid[i] % 100;
@@ -239,3 +242,46 @@ void get_rfid_data(rfid_data_type* buffer)
     pthread_mutex_unlock(&rfid_sensor_lock);
 }
 
+short append_reading_to_rfid_log(int log_ID)
+{
+    rfid_data_type log_rfid_data;
+    get_rfid_data(&log_rfid_data);
+    FILE *f = fopen(RFID_LOG_FILE, "a+");
+    if (f == NULL)
+    {
+        mikes_log(ML_WARN, "could not open RFID_LOG_FILE");
+        return 0;
+    }
+    fprintf(f, "%d %d ", log_ID, log_rfid_data.ntags);
+    for (int i = 0; i < log_rfid_data.ntags; i++)
+    {
+        fprintf(f, "%d %d", log_rfid_data.x[i], log_rfid_data.y[i]);
+        if (i < log_rfid_data.ntags - 1) fprintf(f, " ");
+    }
+    fprintf(f, "\n"); 
+    fclose(f); 
+    return 1;
+}
+
+void print_reading_of_rfid(char *buffer, int bufsize)
+{
+    char buf[100];
+
+    rfid_data_type log_rfid_data;
+    get_rfid_data(&log_rfid_data);
+
+    sprintf(buf, "%3d ", log_rfid_data.ntags);
+    buffer[bufsize - 1] = 0;
+    if (strlen(buf) > bufsize - 1) return;
+    strncat(buffer, buf, strlen(buf));
+    bufsize -= strlen(buf);
+    if (bufsize <= 0) return;
+
+    for (int i = 0; i < log_rfid_data.ntags; i++)
+    {
+        sprintf(buf, "%d %d ", log_rfid_data.x[i], log_rfid_data.y[i]);
+        if (strlen(buf) > bufsize - 1) return;
+        strncat(buffer, buf, strlen(buf));
+        bufsize -= strlen(buf);
+    }
+}

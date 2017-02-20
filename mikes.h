@@ -6,6 +6,8 @@
 #define USER_DIR_BACKUP 3
 #define USER_DIR_ONOFF  4
 #define USER_DIR_BACK   5
+#define USER_DIR_SPINRIGHT 6
+#define USER_DIR_SPINLEFT 7
 
 extern volatile unsigned char program_runs;
 extern volatile unsigned char user_control;

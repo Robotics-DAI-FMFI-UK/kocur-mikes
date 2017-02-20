@@ -138,7 +138,7 @@ void *navigation_thread(void *arg)
             laststatus = collect_state;
         }
         get_base_data(&base_data);
-        get_range_segments(&segments, 180*4, 155, 350);
+        get_range_segments(&segments, 180*4, 145, 350);
 
         int have_cube = cube_filter(&base_data);
         if (have_cube != had_cube)
@@ -242,6 +242,14 @@ void *navigation_thread(void *arg)
             case STATE_USER_CONTROL: 
                 switch (user_dir)
                 {
+                    case USER_DIR_SPINRIGHT:
+                             set_motor_speeds(NORMAL_NAVIGATION_SPEED, -NORMAL_NAVIGATION_SPEED);
+			     user_moving = 1;
+                             break; 
+                    case USER_DIR_SPINLEFT:
+                             set_motor_speeds(-NORMAL_NAVIGATION_SPEED, NORMAL_NAVIGATION_SPEED);
+			     user_moving = 1;
+                             break; 
                     case USER_DIR_RIGHT:  
                              set_motor_speeds(NORMAL_NAVIGATION_SPEED, NORMAL_NAVIGATION_SPEED);
                              follow_azimuth((base_data.heading + 30) % 360);

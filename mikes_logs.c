@@ -101,6 +101,21 @@ void mikes_log_val2(unsigned int log_type, char *log_msg, int val, int val2)
     printf("%s: %s %d %d\n", log_type_str[log_type], log_msg, val, val2);
 }
 
+void mikes_log_double2(unsigned int log_type, char *log_msg, double val, double val2)
+{
+  long run_time = get_run_time();
+
+  FILE *f = try_opening_log(log_type);
+  if (f)
+  {
+      fprintf(f, "%05ld.%02d %s: %s %e %e\n", run_time / 100L, (int)(run_time % 100), log_type_str[log_type], log_msg, val, val2);
+      fclose(f);
+  }
+
+  if (mikes_config.print_all_logs_to_console)
+    printf("%s: %s %e %e\n", log_type_str[log_type], log_msg, val, val2);
+}
+
 void mikes_log_val(unsigned int log_type, char *log_msg, int val)
 {
   long run_time = get_run_time();
@@ -116,3 +131,17 @@ void mikes_log_val(unsigned int log_type, char *log_msg, int val)
     printf("%s: %s %d\n", log_type_str[log_type], log_msg, val);
 }
 
+void mikes_log_double(unsigned int log_type, char *log_msg, double val)
+{
+  long run_time = get_run_time();
+
+  FILE *f = try_opening_log(log_type);
+  if (f)
+  {
+      fprintf(f, "%05ld.%02d %s: %s %e\n", run_time / 100L, (int)(run_time % 100), log_type_str[log_type], log_msg, val);
+      fclose(f);
+  }
+
+  if (mikes_config.print_all_logs_to_console)
+    printf("%s: %s %e\n", log_type_str[log_type], log_msg, val);
+}

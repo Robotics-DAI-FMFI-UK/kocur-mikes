@@ -8,6 +8,8 @@
 #define SICK_PORT 2112
 #define SICK_ADDR "169.254.0.9"
 
+#define RFID_LOG_FILE "rfid_log.txt"
+
 typedef struct {
   short ntags;
   short x[MAX_NUMBER_OF_TAGS];
@@ -17,5 +19,8 @@ typedef struct {
 
 void init_rfid_sensor();
 void get_rfid_data(rfid_data_type *buffer);
+short append_reading_to_rfid_log(int log_ID);
+void print_reading_of_rfid(char *buffer, int bufsize);
+
 
 #endif

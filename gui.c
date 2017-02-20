@@ -107,8 +107,8 @@ void init_gui()
     gui_surface = gui_cairo_create_x11_surface(&width, &height);
     gui = cairo_create(gui_surface);
 
-    int mapwidth = 350;
-    int mapheight = 250;
+    int mapwidth = 720;
+    int mapheight = 720;
     map_gui_surface = gui_cairo_create_x11_surface(&mapwidth, &mapheight);
     map_gui = cairo_create(map_gui_surface);
 
